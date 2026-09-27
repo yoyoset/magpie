@@ -26,7 +26,7 @@
       Claude Code `Stop`/`Notification` hook 配方、定时任务 prompt 片段
 - [x] **M5 渠道**：`Channel` trait；Telegram（带 确认/稍后 按钮）、ntfy、webhook；HTTP 层可注入以便测试
 - [x] **M6a 运行时**：`magpie-runtime` 的 Dispatcher（触发提醒、推进升级、并发投递、失败入库）+ run 循环
-- [ ] **M6b 配置文件**：`config.toml` 模式（端口、升级策略、路由、渠道），读写 + 校验，放 `magpie-config`
+- [x] **M6b 配置文件**：`config.toml` 模式（端口、升级策略、路由、渠道），读写 + 校验，放 `magpie-config`
 - [ ] **M6c Tauri 外壳**：托盘、单实例、自启动、Windows toast 渠道、接线（server + runtime）、endpoint.json 带 PID
 - [ ] **M7 界面**：收件箱、事件详情（ack/snooze/回复）、提醒编辑、渠道设置
 - [ ] **M8 桌宠**：透明置顶窗口、喜鹊形象、气泡、idle/alert/sleep 状态、拖动、穿透点击
@@ -66,3 +66,4 @@
 - 2026-09-28 M4：magpie-config（凭据管理器实测可用）+ magpie-cli + INTEGRATIONS.md。真跑二进制发现并修了 2 个单测漏掉的 bug（clap 组 id、hook 退出码 2）。
 - 2026-09-28 M5：magpie-channels（Telegram/ntfy/webhook），实测 reqwest 错误会带出含 token 的 URL，已用 without_url 去掉并有变异测试守着。真机投递等 bot token。
 - 2026-09-28 M6a：magpie-runtime，7 个场景测试含真实 run 循环（通知后 2 秒内投递，实测整套 0.16 秒）。M6 拆成 a/b/c。
+- 2026-09-28 M6b：config.toml 全表 deny_unknown_fields + 交叉校验（吸取 viiyd 配置静默失效三次的教训），108 测试。
