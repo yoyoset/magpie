@@ -41,6 +41,9 @@ pub enum Command {
     Hook {
         #[arg(value_enum)]
         agent: HookAgent,
+        /// Severity for `Stop` (fires after every turn). Default: inbox only.
+        #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
+        stop_severity: SeverityArg,
     },
 }
 

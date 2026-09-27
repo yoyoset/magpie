@@ -41,8 +41,12 @@ fn main() -> ExitCode {
     };
     let out = Output { json: cli.json };
 
-    if let Command::Hook { agent } = cli.command {
-        run_hook(agent);
+    if let Command::Hook {
+        agent,
+        stop_severity,
+    } = cli.command
+    {
+        run_hook(agent, stop_severity.into());
         return ExitCode::SUCCESS;
     }
 
@@ -90,7 +94,7 @@ fn resolve_connection() -> anyhow::Result<Connection> {
     )?)
 }
 
-fn run_hook(agent: HookAgent) {
+fn run_hook(agent: HookAgent, stop_severity: magpie_core::Severity) {
     let mut stdin = String::new();
     if let Err(e) = std::io::stdin().read_to_string(&mut stdin) {
         eprintln!("magpie hook: cannot read stdin: {e}");
@@ -100,7 +104,7 @@ fn run_hook(agent: HookAgent) {
         .ok()
         .map(|conn| Client::new(conn, HOOK_TIMEOUT));
     let result = match agent {
-        HookAgent::ClaudeCode => commands::hook_claude_code(client.as_ref(), &stdin),
+        HookAgent::ClaudeCode => commands::hook_claude_code(client.as_ref(), &stdin, stop_severity),
     };
     match result {
         Ok(msg) => eprintln!("magpie hook: {msg}"),

@@ -12,7 +12,11 @@ const MAX_BODY_CHARS: usize = 1500;
 /// Field names follow <https://code.claude.com/docs/en/hooks>. The Notification
 /// payload's text fields are not fully documented, so `message`/`title` are
 /// read if present and the event still works without them.
-pub fn claude_code(payload: &Value) -> Option<EventDraft> {
+///
+/// `stop_severity` applies to `Stop`: it fires after *every* interactive turn,
+/// so the default (`Info`) records it in the inbox without a toast. Scheduled or
+/// unattended setups can raise it with `magpie hook claude-code --stop-severity normal`.
+pub fn claude_code(payload: &Value, stop_severity: Severity) -> Option<EventDraft> {
     let project = project_name(payload);
     let mut tags = vec!["claude-code".to_owned()];
     if let Some(p) = &project {
@@ -35,7 +39,7 @@ pub fn claude_code(payload: &Value) -> Option<EventDraft> {
                 source: SOURCE.into(),
                 title: format!("Claude 完成了{where_}"),
                 body,
-                severity: Severity::Normal,
+                severity: stop_severity,
                 tags,
             })
         }
@@ -94,9 +98,26 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn claude_code_default(payload: &Value) -> Option<EventDraft> {
+        claude_code(payload, Severity::Info)
+    }
+
+    #[test]
+    fn stop_is_quiet_by_default_and_raisable() {
+        let p = json!({"hook_event_name": "Stop", "last_assistant_message": "done"});
+        assert_eq!(
+            claude_code(&p, Severity::Info).unwrap().severity,
+            Severity::Info
+        );
+        assert_eq!(
+            claude_code(&p, Severity::Normal).unwrap().severity,
+            Severity::Normal
+        );
+    }
+
     #[test]
     fn stop_uses_last_message_and_project() {
-        let e = claude_code(&json!({
+        let e = claude_code_default(&json!({
             "hook_event_name": "Stop",
             "cwd": "F:\\my_ai\\viiyd3.0",
             "last_assistant_message": "  下周 5 条已备好。 "
@@ -104,18 +125,21 @@ mod tests {
         .unwrap();
         assert_eq!(e.title, "Claude 完成了 · viiyd3.0");
         assert_eq!(e.body, "下周 5 条已备好。");
-        assert_eq!(e.severity, Severity::Normal);
+        assert_eq!(e.severity, Severity::Info);
         assert_eq!(e.tags, vec!["claude-code", "viiyd3.0"]);
     }
 
     #[test]
     fn stop_continuation_is_silent() {
-        assert!(claude_code(&json!({"hook_event_name":"Stop","stop_hook_active":true})).is_none());
+        assert!(
+            claude_code_default(&json!({"hook_event_name":"Stop","stop_hook_active":true}))
+                .is_none()
+        );
     }
 
     #[test]
     fn permission_prompt_is_urgent() {
-        let e = claude_code(&json!({
+        let e = claude_code_default(&json!({
             "hook_event_name": "Notification",
             "notification_type": "permission_prompt",
             "message": "Claude needs your permission to use Bash",
@@ -132,7 +156,7 @@ mod tests {
 
     #[test]
     fn housekeeping_notifications_are_info() {
-        let e = claude_code(
+        let e = claude_code_default(
             &json!({"hook_event_name":"Notification","notification_type":"auth_success"}),
         )
         .unwrap();
@@ -141,15 +165,16 @@ mod tests {
 
     #[test]
     fn other_hooks_ignored() {
-        assert!(claude_code(&json!({"hook_event_name":"PreToolUse"})).is_none());
-        assert!(claude_code(&json!({})).is_none());
+        assert!(claude_code_default(&json!({"hook_event_name":"PreToolUse"})).is_none());
+        assert!(claude_code_default(&json!({})).is_none());
     }
 
     #[test]
     fn long_messages_are_truncated_by_chars() {
         let long = "鹊".repeat(MAX_BODY_CHARS + 10);
         let e =
-            claude_code(&json!({"hook_event_name":"Stop","last_assistant_message":long})).unwrap();
+            claude_code_default(&json!({"hook_event_name":"Stop","last_assistant_message":long}))
+                .unwrap();
         assert_eq!(e.body.chars().count(), MAX_BODY_CHARS + 1); // + ellipsis
         assert!(e.body.ends_with('…'));
     }

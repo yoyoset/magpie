@@ -266,9 +266,13 @@ pub fn unremind(client: &Client, out: Output, id: &str) -> anyhow::Result<()> {
 
 /// Reads the hook payload from stdin and forwards it. Returns what happened so
 /// `main` can report it on stderr; the exit code is always 0 regardless.
-pub fn hook_claude_code(client: Option<&Client>, stdin: &str) -> anyhow::Result<String> {
+pub fn hook_claude_code(
+    client: Option<&Client>,
+    stdin: &str,
+    stop_severity: magpie_core::Severity,
+) -> anyhow::Result<String> {
     let payload: Value = serde_json::from_str(stdin).context("hook stdin is not JSON")?;
-    let Some(draft) = hook::claude_code(&payload) else {
+    let Some(draft) = hook::claude_code(&payload, stop_severity) else {
         return Ok("ignored".into());
     };
     let client = client.context("Magpie connection not configured")?;
