@@ -27,6 +27,7 @@ pub mod secret_keys {
 /// Built-in local channel ids, implemented by the app.
 pub const TOAST: &str = "toast";
 pub const PET: &str = "pet";
+pub const TAKEOVER: &str = "takeover";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -63,6 +64,8 @@ impl Default for Api {
 pub struct Desktop {
     pub toast: bool,
     pub pet: bool,
+    /// Full-screen alert with sound for critical events, until answered.
+    pub takeover: bool,
     pub autostart: bool,
 }
 
@@ -71,6 +74,7 @@ impl Default for Desktop {
         Self {
             toast: true,
             pet: true,
+            takeover: true,
             autostart: true,
         }
     }
@@ -120,6 +124,9 @@ impl Settings {
         }
         if self.desktop.pet {
             ids.push(PET.to_owned());
+        }
+        if self.desktop.takeover {
+            ids.push(TAKEOVER.to_owned());
         }
         if self.telegram.is_some() {
             ids.push("telegram".to_owned());
@@ -259,6 +266,7 @@ max_attempts = 6            # 最多提醒几轮，之后标记为「放弃」
 [desktop]
 toast = true
 pet = true
+takeover = true            # critical：全屏 + 提示音，直到回应（Alt+F4 或托盘可关）
 autostart = true
 
 # [telegram]
@@ -293,7 +301,7 @@ mod tests {
         let s = Settings::parse("").unwrap();
         assert_eq!(s.api.port, DEFAULT_PORT);
         assert_eq!(s.escalation, EscalationPolicy::default());
-        assert_eq!(s.channel_ids(), vec!["toast", "pet"]);
+        assert_eq!(s.channel_ids(), vec!["toast", "pet", "takeover"]);
     }
 
     #[test]
@@ -338,7 +346,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             s.channel_ids(),
-            vec!["toast", "pet", "telegram", "ntfy", "webhook:ha"]
+            vec!["toast", "pet", "takeover", "telegram", "ntfy", "webhook:ha"]
         );
         assert_eq!(s.ntfy.unwrap().server, "https://ntfy.sh");
         assert_eq!(

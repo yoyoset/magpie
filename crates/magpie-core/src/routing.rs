@@ -4,7 +4,7 @@
 //! 1. **Route** (what the user configured): first matching route wins, like mail
 //!    filters. No match falls back to every channel.
 //! 2. **Tier** (how far escalation has gone): local channels always, remote ones
-//!    only from `Tier::Phone` up.
+//!    from `Tier::Phone` up, the full-screen takeover only at `Tier::Takeover`.
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,19 @@ pub enum Reach {
     Local,
     /// Leaves the machine: Telegram, ntfy, webhook.
     Remote,
+    /// Full-screen takeover: only when escalation reaches `Tier::Takeover`.
+    Takeover,
+}
+
+impl Reach {
+    /// Whether a channel of this reach may be used at `tier`.
+    pub fn allowed_at(self, tier: Tier) -> bool {
+        match self {
+            Self::Local => true,
+            Self::Remote => tier >= Tier::Phone,
+            Self::Takeover => tier == Tier::Takeover,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,7 +93,7 @@ pub fn select_channels<'a>(
     channels
         .iter()
         .filter(|c| allowed.is_none_or(|ids| ids.contains(&c.id)))
-        .filter(|c| c.reach == Reach::Local || tier >= Tier::Phone)
+        .filter(|c| c.reach.allowed_at(tier))
         .map(|c| c.id.as_str())
         .collect()
 }
@@ -133,6 +146,21 @@ mod tests {
         assert_eq!(
             select_channels(&[], &chans(), &e, Tier::Phone),
             vec!["toast", "pet", "telegram"]
+        );
+    }
+
+    #[test]
+    fn takeover_only_at_takeover_tier() {
+        let mut cs = chans();
+        cs.push(ChannelSpec {
+            id: "takeover".into(),
+            reach: Reach::Takeover,
+        });
+        let e = event("cli", Severity::Critical, &[]);
+        assert!(!select_channels(&[], &cs, &e, Tier::Phone).contains(&"takeover"));
+        assert_eq!(
+            select_channels(&[], &cs, &e, Tier::Takeover),
+            vec!["toast", "pet", "telegram", "takeover"]
         );
     }
 
