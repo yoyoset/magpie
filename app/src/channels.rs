@@ -17,6 +17,7 @@ use magpie_config::settings::{secret_keys, Settings};
 use tauri::AppHandle;
 
 use crate::pet::PetChannel;
+use crate::takeover::TakeoverChannel;
 use crate::toast::Toast;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
@@ -46,6 +47,9 @@ pub fn build(app: &AppHandle, settings: &Settings) -> Built {
     }
     if settings.desktop.pet {
         channels.push(Arc::new(PetChannel::new(app.clone())));
+    }
+    if settings.desktop.takeover {
+        channels.push(Arc::new(TakeoverChannel::new(app.clone())));
     }
 
     if let Some(t) = &settings.telegram {

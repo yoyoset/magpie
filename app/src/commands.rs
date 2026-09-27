@@ -73,6 +73,7 @@ pub async fn ack_event(
     let via = match via.as_deref() {
         None | Some("desktop") => "desktop",
         Some("pet") => "pet",
+        Some("takeover") => "takeover",
         Some(other) => return Err(format!("未知的回应来源 `{other}`")),
     };
     let s = services(&app)?;
@@ -215,5 +216,19 @@ pub fn show_inbox(app: AppHandle) {
 pub fn hide_pet(app: AppHandle) {
     if let Some(w) = app.get_webview_window(crate::pet::LABEL) {
         let _ = w.hide();
+    }
+}
+
+#[tauri::command]
+pub fn takeover_pending(app: AppHandle) -> Vec<crate::takeover::Pending> {
+    app.state::<crate::takeover::Queue>().snapshot()
+}
+
+/// Drops an event from the takeover queue (after the page acked it) and hides
+/// the window once nothing is left.
+#[tauri::command]
+pub fn takeover_done(app: AppHandle, id: String) {
+    if app.state::<crate::takeover::Queue>().remove(&id) == 0 {
+        crate::takeover::hide(&app);
     }
 }

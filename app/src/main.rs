@@ -12,6 +12,7 @@ mod commands;
 mod logging;
 mod pet;
 mod services;
+mod takeover;
 mod telegram_inbox;
 mod toast;
 mod tray;
@@ -32,6 +33,7 @@ fn main() {
         .setup(|app| {
             let paths = magpie_config::paths::Paths::default_location()?;
             app.manage(logging::init(&paths)?);
+            app.manage(takeover::Queue::default());
             tray::build(app.handle())?;
             services::start(app.handle().clone(), paths);
             Ok(())
@@ -48,6 +50,8 @@ fn main() {
             commands::open_data_folder,
             commands::show_inbox,
             commands::hide_pet,
+            commands::takeover_pending,
+            commands::takeover_done,
         ])
         .on_window_event(|window, event| {
             // Closing the window hides it; Magpie keeps running in the tray.

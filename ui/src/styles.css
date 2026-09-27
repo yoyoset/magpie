@@ -140,3 +140,17 @@ html.pet-mode, html.pet-mode body, html.pet-mode #root { background: transparent
 .pet-menu { position: absolute; right: 120px; bottom: 60px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .pet-menu button { border: none; border-radius: 0; text-align: left; background: transparent; }
 .pet-menu button:hover { background: var(--surface-2); }
+
+/* ---------- critical takeover (?view=takeover) ---------- */
+html.takeover-mode, html.takeover-mode body, html.takeover-mode #root { background: transparent; height: 100%; overflow: hidden; }
+.takeover { height: 100vh; display: grid; place-items: center; background: rgba(8, 11, 16, .82); backdrop-filter: blur(6px); }
+.takeover.empty { background: transparent; }
+.takeover-card { width: min(720px, 90vw); background: var(--surface); border: 2px solid var(--critical); border-radius: 16px; padding: 28px 32px; box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: pulse-border 1.6s ease-in-out infinite; }
+.takeover-bird { width: 96px; height: 96px; margin: -76px auto 8px; }
+.takeover-label { color: var(--critical); font-weight: 700; text-align: center; letter-spacing: .04em; }
+.takeover h1 { font-size: 28px; text-align: center; margin: 10px 0 14px; overflow-wrap: anywhere; }
+.takeover-body { white-space: pre-wrap; font-family: inherit; background: var(--bg); border-radius: 10px; padding: 14px 16px; max-height: 38vh; overflow-y: auto; line-height: 1.6; }
+.takeover-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+button.big { font-size: 16px; padding: 10px 22px; }
+.takeover .hint { text-align: center; margin-top: 16px; }
+@keyframes pulse-border { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--critical) 35%, transparent), 0 20px 60px rgba(0,0,0,.6); } }
