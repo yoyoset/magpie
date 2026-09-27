@@ -1060,6 +1060,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "magpie-runtime"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "magpie-channels",
+ "magpie-core",
+ "magpie-store",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "magpie-server"
 version = "0.1.0"
 dependencies = [

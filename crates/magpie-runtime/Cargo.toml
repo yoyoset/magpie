@@ -1,0 +1,21 @@
+[package]
+name = "magpie-runtime"
+description = "Magpie's engine: fires reminders, escalates open events, delivers through channels."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+magpie-channels.workspace = true
+magpie-core.workspace = true
+magpie-store.workspace = true
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
+
+[lints]
+workspace = true
