@@ -46,7 +46,7 @@
 
 - **Telegram 真机验证**：需要 ① 找 @BotFather 建一个 bot 拿 token（或复用现有表单链路的 bot）② 给 bot 发一句话后拿到你的 chat id。
   代码和测试已完成，缺的只是真实投递那一步。token 会存进凭据管理器，不落文件。
-- **看一眼屏幕**：运行 `F:\my_ai\magpie	arget\debug\magpie-app.exe`，再在终端跑 `magpie notify 测试`，
+- **看一眼屏幕**：运行 `F:/my_ai/magpie/target/debug/magpie-app.exe`，再在终端跑 `magpie notify 测试`，
   确认右下角有「鹊」托盘图标、弹出了 Windows 通知。日志显示通知 API 返回成功，但未打包的调试版在 Windows 上
   通知可能显示成别的应用名或被系统吞掉，只有肉眼能确认。
 - **ntfy（可选）**：手机装 ntfy App 并订阅一个只有你知道的 topic 名。不装也行，Telegram 够用。
