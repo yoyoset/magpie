@@ -19,7 +19,7 @@
 - [x] **M1 调度与升级（core）**：`Schedule`（once/cron/interval）→ `next_fire(now)`；`EscalationPolicy` →
       `next_action(event, deliveries, now)`；`Route` 匹配。纯函数 + 边界测试（DST 无关、跨月、错过的触发）。
       实测：DST 不存在的时刻 croner 顺延到当天第一个有效时刻（不是跳过）
-- [ ] **M2 存储**：SQLite 迁移、Event/Reminder/Delivery/Ack 仓储，内存库测试
+- [x] **M2 存储**：SQLite 迁移、Event/Reminder/Delivery/Ack 仓储，内存库测试 + 真实文件 WAL 重开测试
 - [ ] **M3 本机 API**：axum，`POST /v1/events`、`GET /v1/events`、`POST /v1/events/{id}/ack`、
       `POST /v1/reminders`、`GET /v1/health`；token 鉴权；集成测试
 - [ ] **M4 CLI + Claude Code 集成**：`magpie notify|remind|list|ack`；`docs/INTEGRATIONS.md` 给出
@@ -53,3 +53,4 @@
 - 2026-09-28 立项：名字、架构、路线图。
 - 2026-09-28 M0：workspace + core 领域类型，fmt/clippy/test 全绿（9 测试）。
 - 2026-09-28 M1：Schedule/EscalationPolicy/select_channels，34 测试。DST 行为最初假设错了，以实测为准改了测试。
+- 2026-09-28 M2：magpie-store（rusqlite bundled、user_version 迁移、WAL），store 12 + core 38 测试。
