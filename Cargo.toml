@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,6 +20,7 @@ magpie-store = { path = "crates/magpie-store" }
 magpie-config = { path = "crates/magpie-config" }
 magpie-channels = { path = "crates/magpie-channels" }
 magpie-runtime = { path = "crates/magpie-runtime" }
+magpie-server = { path = "crates/magpie-server" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
