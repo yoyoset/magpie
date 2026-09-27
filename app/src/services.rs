@@ -7,12 +7,12 @@ use magpie_config::paths::Paths;
 use magpie_core::{EventDraft, EventId, Severity};
 use magpie_runtime::Dispatcher;
 use magpie_server::{AppState, SystemClock};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Notify;
 
-use crate::{bootstrap, channels, tray};
+use crate::{bootstrap, channels, commands, tray};
 
 pub const SELF_SOURCE: &str = "magpie";
 
@@ -50,6 +50,22 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
         Arc::new(SystemClock),
         Arc::clone(&changed),
     );
+    let channel_ids = built.channels.iter().map(|c| c.id().to_owned()).collect();
+    app.manage(commands::Services {
+        state: state.clone(),
+        info: commands::RuntimeInfo {
+            port,
+            data_dir: boot.paths.root().display().to_string(),
+            config_file: boot.paths.config_file().display().to_string(),
+            channels: channel_ids,
+            webhook_ids: boot
+                .settings
+                .webhooks
+                .iter()
+                .map(|w| w.id.clone())
+                .collect(),
+        },
+    });
     tauri::async_runtime::spawn(async move {
         if let Err(e) = magpie_server::serve(listener, state).await {
             tracing::error!(error = %e, "API server stopped");

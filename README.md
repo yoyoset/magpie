@@ -26,7 +26,11 @@ React + TypeScript UI.
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+(cd ui && npm ci && npm run build)          # UI must be built before the app embeds it
+cargo run -p magpie-app --features tauri/custom-protocol   # app with the built UI
 ```
+
+Plain `cargo run -p magpie-app` loads the Vite dev server (`cd ui && npm run dev`) instead.
 
 ## License
 

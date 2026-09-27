@@ -64,7 +64,7 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-fn open_data_folder() {
+pub fn open_data_folder() {
     match magpie_config::paths::Paths::default_location() {
         Ok(p) => {
             if let Err(e) = std::process::Command::new("explorer").arg(p.root()).spawn() {

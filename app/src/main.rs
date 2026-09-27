@@ -8,6 +8,7 @@
 
 mod bootstrap;
 mod channels;
+mod commands;
 mod logging;
 mod services;
 mod toast;
@@ -33,6 +34,17 @@ fn main() {
             services::start(app.handle().clone(), paths);
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_events,
+            commands::event_detail,
+            commands::ack_event,
+            commands::list_reminders,
+            commands::create_reminder,
+            commands::delete_reminder,
+            commands::app_info,
+            commands::set_secret,
+            commands::open_data_folder,
+        ])
         .on_window_event(|window, event| {
             // Closing the window hides it; Magpie keeps running in the tray.
             if let WindowEvent::CloseRequested { api, .. } = event {
