@@ -66,6 +66,9 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
                 .collect(),
         },
     });
+    if let Some((api, chat_id)) = built.telegram_inbox {
+        tauri::async_runtime::spawn(crate::telegram_inbox::run(api, chat_id, state.clone()));
+    }
     tauri::async_runtime::spawn(async move {
         if let Err(e) = magpie_server::serve(listener, state).await {
             tracing::error!(error = %e, "API server stopped");

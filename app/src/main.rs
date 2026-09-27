@@ -12,6 +12,7 @@ mod commands;
 mod logging;
 mod pet;
 mod services;
+mod telegram_inbox;
 mod toast;
 mod tray;
 
