@@ -1,0 +1,27 @@
+[package]
+name = "magpie-cli"
+description = "Command-line client for Magpie: notify, remind, list, ack, and agent hooks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "magpie"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+humantime = "2"
+magpie-config.workspace = true
+magpie-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Loopback only, so no TLS stack.
+ureq = { version = "3", default-features = false, features = ["json"] }
+
+[lints]
+workspace = true
