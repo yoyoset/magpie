@@ -20,8 +20,8 @@
       `next_action(event, deliveries, now)`；`Route` 匹配。纯函数 + 边界测试（DST 无关、跨月、错过的触发）。
       实测：DST 不存在的时刻 croner 顺延到当天第一个有效时刻（不是跳过）
 - [x] **M2 存储**：SQLite 迁移、Event/Reminder/Delivery/Ack 仓储，内存库测试 + 真实文件 WAL 重开测试
-- [ ] **M3 本机 API**：axum，`POST /v1/events`、`GET /v1/events`、`POST /v1/events/{id}/ack`、
-      `POST /v1/reminders`、`GET /v1/health`；token 鉴权；集成测试
+- [x] **M3 本机 API**：axum，`POST /v1/events`、`GET /v1/events`、`POST /v1/events/{id}/ack`、
+      `POST /v1/reminders`、`GET /v1/health`；token 鉴权；集成测试。契约见 `docs/API.md`
 - [ ] **M4 CLI + Claude Code 集成**：`magpie notify|remind|list|ack`；`docs/INTEGRATIONS.md` 给出
       Claude Code `Stop`/`Notification` hook 配方、定时任务 prompt 片段
 - [ ] **M5 渠道**：`Channel` trait；Telegram（带 确认/稍后 按钮）、ntfy、webhook；HTTP 层可注入以便测试
@@ -54,3 +54,4 @@
 - 2026-09-28 M0：workspace + core 领域类型，fmt/clippy/test 全绿（9 测试）。
 - 2026-09-28 M1：Schedule/EscalationPolicy/select_channels，34 测试。DST 行为最初假设错了，以实测为准改了测试。
 - 2026-09-28 M2：magpie-store（rusqlite bundled、user_version 迁移、WAL），store 12 + core 38 测试。
+- 2026-09-28 M3：magpie-server（axum 0.8），11 个 API 测试含真实回环 socket；413/401/404/422 均实测。
