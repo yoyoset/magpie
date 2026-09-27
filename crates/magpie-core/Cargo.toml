@@ -1,0 +1,19 @@
+[package]
+name = "magpie-core"
+description = "Pure domain logic for Magpie: events, reminders, scheduling, escalation. No IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
