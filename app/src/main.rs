@@ -10,6 +10,7 @@ mod bootstrap;
 mod channels;
 mod commands;
 mod logging;
+mod pet;
 mod services;
 mod toast;
 mod tray;
@@ -44,6 +45,8 @@ fn main() {
             commands::app_info,
             commands::set_secret,
             commands::open_data_folder,
+            commands::show_inbox,
+            commands::hide_pet,
         ])
         .on_window_event(|window, event| {
             // Closing the window hides it; Magpie keeps running in the tray.

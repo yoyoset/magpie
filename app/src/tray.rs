@@ -10,10 +10,11 @@ const STATUS_ID: &str = "status";
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let status = MenuItem::with_id(app, STATUS_ID, "启动中…", false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "打开收件箱", true, None::<&str>)?;
+    let pet = MenuItem::with_id(app, "pet", "显示 / 隐藏桌宠", true, None::<&str>)?;
     let folder = MenuItem::with_id(app, "folder", "打开配置与日志目录", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出 Magpie", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&status, &sep, &open, &folder, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&status, &sep, &open, &pet, &folder, &sep, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Magpie 喜鹊")
@@ -21,6 +22,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main(app),
+            "pet" => crate::pet::toggle(app),
             "folder" => open_data_folder(),
             "quit" => app.exit(0),
             _ => {}

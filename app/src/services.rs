@@ -80,6 +80,11 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
     ));
     tauri::async_runtime::spawn(magpie_runtime::run(dispatcher, changed, chrono::Local));
 
+    if boot.settings.desktop.pet {
+        if let Err(e) = crate::pet::create(app) {
+            tracing::warn!(error = %e, "could not create pet window");
+        }
+    }
     apply_autostart(app, boot.settings.desktop.autostart);
     tray::set_status(app, &format!("运行中 · 127.0.0.1:{port}"));
     Ok(())

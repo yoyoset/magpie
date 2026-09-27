@@ -16,6 +16,7 @@ use magpie_config::secrets::{OsKeyring, SecretStore};
 use magpie_config::settings::{secret_keys, Settings};
 use tauri::AppHandle;
 
+use crate::pet::PetChannel;
 use crate::toast::Toast;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
@@ -40,7 +41,9 @@ pub fn build(app: &AppHandle, settings: &Settings) -> Built {
     if settings.desktop.toast {
         channels.push(Arc::new(Toast::new(app.clone())));
     }
-    // `pet` arrives with the desktop pet (M8).
+    if settings.desktop.pet {
+        channels.push(Arc::new(PetChannel::new(app.clone())));
+    }
 
     if let Some(t) = &settings.telegram {
         match secret(secret_keys::TELEGRAM_BOT_TOKEN, &mut warnings) {

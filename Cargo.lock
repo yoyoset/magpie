@@ -2477,6 +2477,7 @@ dependencies = [
  "magpie-runtime",
  "magpie-server",
  "magpie-store",
+ "serde",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -2486,6 +2487,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

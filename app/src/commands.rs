@@ -62,10 +62,21 @@ pub async fn event_detail(app: AppHandle, id: String) -> CmdResult<EventDetail> 
         .map_err(err)
 }
 
+/// `via` records which surface answered; only the app's own surfaces are accepted.
 #[tauri::command]
-pub async fn ack_event(app: AppHandle, id: String, kind: AckKind) -> CmdResult<()> {
+pub async fn ack_event(
+    app: AppHandle,
+    id: String,
+    kind: AckKind,
+    via: Option<String>,
+) -> CmdResult<()> {
+    let via = match via.as_deref() {
+        None | Some("desktop") => "desktop",
+        Some("pet") => "pet",
+        Some(other) => return Err(format!("未知的回应来源 `{other}`")),
+    };
     let s = services(&app)?;
-    ops::ack_event(&s.state, EventId(parse_id(&id)?), kind, "desktop")
+    ops::ack_event(&s.state, EventId(parse_id(&id)?), kind, via)
         .await
         .map_err(err)
 }
@@ -193,4 +204,16 @@ pub fn set_secret(app: AppHandle, key: String, value: String) -> CmdResult<()> {
 #[tauri::command]
 pub fn open_data_folder() {
     crate::tray::open_data_folder();
+}
+
+#[tauri::command]
+pub fn show_inbox(app: AppHandle) {
+    crate::tray::show_main(&app);
+}
+
+#[tauri::command]
+pub fn hide_pet(app: AppHandle) {
+    if let Some(w) = app.get_webview_window(crate::pet::LABEL) {
+        let _ = w.hide();
+    }
 }

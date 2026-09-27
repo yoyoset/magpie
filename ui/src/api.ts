@@ -7,7 +7,8 @@ export const api = {
   listEvents: (open: boolean, limit = 200) =>
     invoke<EventView[]>("list_events", { query: { open, limit } }),
   eventDetail: (id: string) => invoke<EventDetail>("event_detail", { id }),
-  ack: (id: string, kind: AckKind) => invoke<void>("ack_event", { id, kind }),
+  ack: (id: string, kind: AckKind, via: "desktop" | "pet" = "desktop") =>
+    invoke<void>("ack_event", { id, kind, via }),
   listReminders: () => invoke<ReminderView[]>("list_reminders"),
   createReminder: (schedule: Schedule, template: EventDraft) =>
     invoke<ReminderView>("create_reminder", { reminder: { schedule, template, enabled: true } }),
