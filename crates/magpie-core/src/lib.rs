@@ -5,13 +5,17 @@
 //! reproducible in tests.
 
 pub mod ack;
+pub mod delivery;
 pub mod escalation;
 pub mod event;
+pub mod reminder;
 pub mod routing;
 pub mod schedule;
 
 pub use ack::{Ack, AckKind};
+pub use delivery::{Delivery, DeliveryOutcome};
 pub use escalation::{EscalationPolicy, NextAction, Tier};
 pub use event::{Event, EventDraft, EventId, EventSource, Severity, ValidationError};
+pub use reminder::{Reminder, ReminderId};
 pub use routing::{select_channels, ChannelSpec, Matcher, Reach, Route};
 pub use schedule::{CronExpr, Schedule, ScheduleError};
