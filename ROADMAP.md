@@ -28,7 +28,7 @@
 - [x] **M6a 运行时**：`magpie-runtime` 的 Dispatcher（触发提醒、推进升级、并发投递、失败入库）+ run 循环
 - [x] **M6b 配置文件**：`config.toml` 模式（端口、升级策略、路由、渠道），读写 + 校验，放 `magpie-config`
 - [x] **M6c Tauri 外壳**：托盘、单实例、自启动、Windows toast 渠道、接线（server + runtime）、endpoint.json 带 PID
-- [ ] **M7 界面**：收件箱、事件详情（ack/snooze/回复）、提醒编辑、渠道设置
+- [x] **M7 界面**：收件箱、事件详情（ack/snooze/回复）、提醒编辑、渠道设置
 - [ ] **M8 桌宠**：透明置顶窗口、喜鹊形象、气泡、idle/alert/sleep 状态、拖动、穿透点击
 - [ ] **M9 手机双向**：Telegram getUpdates 长轮询，按钮回调 → Ack，文字回复 → 回传来源 callback
 - [ ] **M10 critical 升级**：紧急 toast + 全屏遮罩 + 声音，直到确认
@@ -53,6 +53,9 @@
 
 ## 已知问题
 
+- 界面改渠道/路由还得手改 `config.toml` 再重启；界面里设了密钥也要重启才生效（M7 只做了密钥写入）。
+- 界面数据是 2 秒轮询，不是推送（有意为之，本机 SQLite 读很便宜）。
+
 - ~~Magpie 没开时 hook 要等约 2.2 秒~~ 已修：连接阶段限 300ms，实测降到 0.45 秒（冷启动首次 1.2 秒）。
 - **Claude Code hook 配方还没在真实会话里跑过**：映射逻辑和退出码都按官方文档 + 模拟 stdin 验证了，
   但 `settings.json` 那段配置本身要等 app 能常驻后再装上实测（不能在没有接收端时装，否则每轮都等 2 秒）。
@@ -69,3 +72,4 @@
 - 2026-09-28 M6a：magpie-runtime，7 个场景测试含真实 run 循环（通知后 2 秒内投递，实测整套 0.16 秒）。M6 拆成 a/b/c。
 - 2026-09-28 M6b：config.toml 全表 deny_unknown_fields + 交叉校验（吸取 viiyd 配置静默失效三次的教训），108 测试。
 - 2026-09-28 M6c：Tauri 外壳跑起来了。单实例、重启保数据、配置缺 token 进收件箱、坏配置拒绝启动均实测；屏幕可见性待用户确认。另修 hook 连接超时（2.2s→0.45s）。
+- 2026-09-28 M7：抽出 ops 层（HTTP 与 Tauri 命令共用），React 界面。屏幕权限被拒，改用 WebView2 调试协议在真实 app 里点完全流程验证。
