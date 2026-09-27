@@ -33,7 +33,7 @@
 - [x] **M9 手机双向**：Telegram getUpdates 长轮询，按钮回调 → Ack，引用回复 → Replied；用 `tools/mock_telegram.py` 实测全流程
 - [x] **M9b 回传来源**：改为「拉」模型 `magpie ask`：发 urgent 事件并阻塞等回答，答案打到 stdout（退出码 0/4/5）。理由见「这次不做」
 - [x] **M10 critical 升级**：全屏遮罩 + WebAudio 提示音 + 队列，直到确认；托盘/Alt+F4 可临时关
-- [ ] **M11 交付**：NSIS 安装包、GitHub Actions（fmt/clippy/test/build）、版本号与 CHANGELOG
+- [x] **M11 交付**：NSIS 安装包（含 CLI）实测装/卸干净；GitHub Actions 已写好待仓库建立后首跑；LICENSE、CHANGELOG
 - [ ] **M12 调研**：能否直接读取 Claude 桌面定时任务的运行结果（本地会话文件）做自动接入
 
 ## 这次不做（及理由）
@@ -49,6 +49,8 @@
 
 - **Telegram 真机验证**：需要 ① 找 @BotFather 建一个 bot 拿 token（或复用现有表单链路的 bot）② 给 bot 发一句话后拿到你的 chat id。
   代码和测试已完成，缺的只是真实投递那一步。token 会存进凭据管理器，不落文件。
+- **建 GitHub 仓库**：建好后 `git remote add origin … && git push -u origin main`，CI 会首次运行；我没法替你建号/建库。
+  打 `v0.1.0` tag 会自动出安装包草稿 release。
 - **看一眼屏幕**：运行 `F:/my_ai/magpie/target/debug/magpie-app.exe`，再在终端跑 `magpie notify 测试`，
   确认右下角有「鹊」托盘图标、弹出了 Windows 通知。日志显示通知 API 返回成功，但未打包的调试版在 Windows 上
   通知可能显示成别的应用名或被系统吞掉，只有肉眼能确认。
@@ -85,3 +87,4 @@
 - 2026-09-28 M9：Telegram 双向（按钮/引用回复/陌生人忽略/offset），对本地假 Bot API 跑通；真机仍等 token。
 - 2026-09-28 M9b：`magpie ask`（回复/忽略/snooze 后确认/超时/JSON 五种情况两进程实测）。推模型不做，理由已记。
 - 2026-09-28 M10：全屏接管。实测 WebView2 下 AudioContext 无需手势即 running，所以不用 MessageBeep/unsafe。Alt+F4 待人工确认。另：852b50f 只跑了测试漏跑 clippy，已补提交修正。
+- 2026-09-28 M11：安装包 4.9MB，静默装/卸实测干净，CLI 随包；externalBin 放主配置会让普通 cargo build 失败，已拆到 release 配置。
