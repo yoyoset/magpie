@@ -4,11 +4,13 @@
 //! - [`endpoint`]: how clients find the running API (written by the app, read by the CLI).
 //! - [`secrets`]: API token in the OS credential store, never in a file.
 //! - [`connection`]: resolves URL + token for a client, with env overrides.
+//! - [`settings`]: the user's `config.toml`, strictly parsed and validated.
 
 pub mod connection;
 pub mod endpoint;
 pub mod paths;
 pub mod secrets;
+pub mod settings;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
