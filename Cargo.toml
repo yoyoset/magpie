@@ -16,6 +16,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 magpie-core = { path = "crates/magpie-core" }
+magpie-store = { path = "crates/magpie-store" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

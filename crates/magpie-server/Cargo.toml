@@ -1,0 +1,27 @@
+[package]
+name = "magpie-server"
+description = "Local HTTP API for Magpie: loopback-only, bearer-token protected."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+axum = "0.8"
+chrono.workspace = true
+magpie-core.workspace = true
+magpie-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { version = "1", features = ["net", "rt", "sync", "macros"] }
+tracing = "0.1"
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-util", "time"] }
+tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true

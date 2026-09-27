@@ -1,0 +1,309 @@
+use std::sync::{Arc, Mutex};
+
+use axum::body::Body;
+use axum::http::{header, Method, Request, StatusCode};
+use axum::Router;
+use chrono::{DateTime, TimeZone, Utc};
+use http_body_util::BodyExt;
+use magpie_server::{router, AppState, Clock};
+use magpie_store::Store;
+use serde_json::{json, Value};
+use tokio::sync::Notify;
+use tower::ServiceExt;
+
+const TOKEN: &str = "test-token-0123456789";
+
+struct FixedClock(DateTime<Utc>);
+
+impl Clock for FixedClock {
+    fn now(&self) -> DateTime<Utc> {
+        self.0
+    }
+}
+
+fn now() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 9, 28, 12, 0, 0).unwrap()
+}
+
+struct Harness {
+    app: Router,
+    changed: Arc<Notify>,
+}
+
+fn harness() -> Harness {
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let changed = Arc::new(Notify::new());
+    let state = AppState::new(
+        store,
+        TOKEN,
+        Arc::new(FixedClock(now())),
+        Arc::clone(&changed),
+    );
+    Harness {
+        app: router(state),
+        changed,
+    }
+}
+
+async fn call(
+    app: &Router,
+    method: Method,
+    uri: &str,
+    token: Option<&str>,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut req = Request::builder().method(method).uri(uri);
+    if let Some(t) = token {
+        req = req.header(header::AUTHORIZATION, format!("Bearer {t}"));
+    }
+    let req = match body {
+        Some(b) => req
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(b.to_string())),
+        None => req.body(Body::empty()),
+    }
+    .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)
+            .unwrap_or(Value::String(String::from_utf8_lossy(&bytes).into()))
+    };
+    (status, value)
+}
+
+async fn authed(
+    app: &Router,
+    method: Method,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    call(app, method, uri, Some(TOKEN), body).await
+}
+
+#[tokio::test]
+async fn health_needs_no_token() {
+    let h = harness();
+    let (status, body) = call(&h.app, Method::GET, "/v1/health", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "ok");
+}
+
+#[tokio::test]
+async fn everything_else_needs_the_token() {
+    let h = harness();
+    for (method, uri) in [
+        (Method::GET, "/v1/events"),
+        (Method::POST, "/v1/events"),
+        (Method::GET, "/v1/reminders"),
+    ] {
+        let (status, body) = call(&h.app, method.clone(), uri, None, None).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "{method} {uri} without token"
+        );
+        assert_eq!(body["error"]["code"], "unauthorized");
+
+        let (status, _) = call(&h.app, method.clone(), uri, Some("wrong"), None).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "{method} {uri} wrong token"
+        );
+    }
+}
+
+#[tokio::test]
+async fn event_lifecycle() {
+    let h = harness();
+    let (status, created) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/events",
+        Some(json!({"source":"claude-code","title":"备货完成","severity":"urgent","tags":["social"]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["title"], "备货完成");
+    assert_eq!(
+        created["created_at"], "2026-09-28T12:00:00Z",
+        "server clock, not client"
+    );
+    let id = created["id"].as_str().unwrap().to_owned();
+
+    let (_, open) = authed(&h.app, Method::GET, "/v1/events?open=true", None).await;
+    assert_eq!(open.as_array().unwrap().len(), 1);
+
+    let (status, _) = authed(
+        &h.app,
+        Method::POST,
+        &format!("/v1/events/{id}/ack"),
+        Some(json!({"kind":"replied","text":"发","via":"cli"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, detail) = authed(&h.app, Method::GET, &format!("/v1/events/{id}"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["closed_at"], "2026-09-28T12:00:00Z");
+    assert_eq!(detail["latest_ack"]["kind"]["kind"], "replied");
+    assert_eq!(detail["deliveries"], json!([]));
+
+    let (_, open) = authed(&h.app, Method::GET, "/v1/events?open=true", None).await;
+    assert!(open.as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn create_wakes_the_runtime() {
+    let h = harness();
+    let woke = h.changed.notified();
+    authed(
+        &h.app,
+        Method::POST,
+        "/v1/events",
+        Some(json!({"source":"cli","title":"x"})),
+    )
+    .await;
+    tokio::time::timeout(std::time::Duration::from_secs(1), woke)
+        .await
+        .expect("changed notify fired");
+}
+
+#[tokio::test]
+async fn invalid_event_is_422_with_reason() {
+    let h = harness();
+    let (status, body) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/events",
+        Some(json!({"source":"cli","title":"  "})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["code"], "invalid");
+    assert_eq!(body["error"]["message"], "title must not be empty");
+}
+
+#[tokio::test]
+async fn unknown_event_is_404() {
+    let h = harness();
+    let ghost = uuid::Uuid::new_v4();
+    let (status, _) = authed(&h.app, Method::GET, &format!("/v1/events/{ghost}"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, body) = authed(
+        &h.app,
+        Method::POST,
+        &format!("/v1/events/{ghost}/ack"),
+        Some(json!({"kind":"acknowledged","via":"cli"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"]["code"], "not_found");
+}
+
+#[tokio::test]
+async fn snooze_into_the_past_is_rejected() {
+    let h = harness();
+    let (_, created) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/events",
+        Some(json!({"source":"cli","title":"x"})),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap();
+    let (status, _) = authed(
+        &h.app,
+        Method::POST,
+        &format!("/v1/events/{id}/ack"),
+        Some(json!({"kind":"snoozed","until":"2026-09-28T11:00:00Z","via":"cli"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn oversized_body_is_rejected() {
+    let h = harness();
+    let huge = "鹊".repeat(60_000); // ~180 KB of UTF-8
+    let (status, _) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/events",
+        Some(json!({"source":"cli","title":"x","body":huge})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn reminder_crud_and_validation() {
+    let h = harness();
+    let (status, r) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/reminders",
+        Some(json!({
+            "schedule": {"kind":"cron","expr":"50 19 * * 1,3,5"},
+            "template": {"source":"reminder","title":"发小红书","severity":"urgent"}
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(r["enabled"], true);
+    let id = r["id"].as_str().unwrap().to_owned();
+
+    let (_, all) = authed(&h.app, Method::GET, "/v1/reminders", None).await;
+    assert_eq!(all.as_array().unwrap().len(), 1);
+
+    let (status, _) = authed(&h.app, Method::DELETE, &format!("/v1/reminders/{id}"), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = authed(&h.app, Method::DELETE, &format!("/v1/reminders/{id}"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, body) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/reminders",
+        Some(json!({"schedule":{"kind":"cron","expr":"0 9 * * *"},"template":{"source":"r","title":""}})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "bad template caught at creation: {body}"
+    );
+}
+
+#[tokio::test]
+async fn binds_loopback_and_serves_real_http() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = magpie_server::bind_loopback(0).await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    assert!(addr.ip().is_loopback());
+
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let state = AppState::new(
+        store,
+        TOKEN,
+        Arc::new(FixedClock(now())),
+        Arc::new(Notify::new()),
+    );
+    let server = tokio::spawn(magpie_server::serve(listener, state));
+
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    stream
+        .write_all(b"GET /v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await
+        .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).await.unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(response.contains(r#""status":"ok""#));
+    server.abort();
+}
