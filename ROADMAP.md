@@ -30,7 +30,8 @@
 - [x] **M6c Tauri 外壳**：托盘、单实例、自启动、Windows toast 渠道、接线（server + runtime）、endpoint.json 带 PID
 - [x] **M7 界面**：收件箱、事件详情（ack/snooze/回复）、提醒编辑、渠道设置
 - [x] **M8 桌宠**：透明置顶窗口、喜鹊形象、气泡、idle/alert/sleep 状态、拖动、穿透点击
-- [ ] **M9 手机双向**：Telegram getUpdates 长轮询，按钮回调 → Ack，文字回复 → 回传来源 callback
+- [x] **M9 手机双向**：Telegram getUpdates 长轮询，按钮回调 → Ack，引用回复 → Replied；用 `tools/mock_telegram.py` 实测全流程
+- [ ] **M9b 回传来源**：事件可带 `callback_url`（必须命中配置里的白名单前缀），人的回应 POST 回去；让 Claude/脚本拿到「发」
 - [ ] **M10 critical 升级**：紧急 toast + 全屏遮罩 + 声音，直到确认
 - [ ] **M11 交付**：NSIS 安装包、GitHub Actions（fmt/clippy/test/build）、版本号与 CHANGELOG
 - [ ] **M12 调研**：能否直接读取 Claude 桌面定时任务的运行结果（本地会话文件）做自动接入
@@ -76,3 +77,4 @@
 - 2026-09-28 M6c：Tauri 外壳跑起来了。单实例、重启保数据、配置缺 token 进收件箱、坏配置拒绝启动均实测；屏幕可见性待用户确认。另修 hook 连接超时（2.2s→0.45s）。
 - 2026-09-28 M7：抽出 ops 层（HTTP 与 Tauri 命令共用），React 界面。屏幕权限被拒，改用 WebView2 调试协议在真实 app 里点完全流程验证。
 - 2026-09-28 M8：桌宠（SVG 喜鹊 + 三种情绪 + 气泡 + 计数角标 + pet 渠道），WebView2 截图与点击全流程验证。
+- 2026-09-28 M9：Telegram 双向（按钮/引用回复/陌生人忽略/offset），对本地假 Bot API 跑通；真机仍等 token。
