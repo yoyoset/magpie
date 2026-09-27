@@ -6,6 +6,7 @@
 mod auth;
 mod clock;
 mod error;
+pub mod ops;
 mod routes;
 
 use std::net::{Ipv4Addr, SocketAddr};
