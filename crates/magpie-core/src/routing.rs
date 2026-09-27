@@ -27,6 +27,7 @@ pub struct ChannelSpec {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Matcher {
     /// Matches when the event source starts with this, e.g. `scheduled:`.
     #[serde(default)]
@@ -55,6 +56,7 @@ impl Matcher {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Route {
     pub name: String,
     #[serde(default, rename = "match")]
@@ -186,6 +188,12 @@ mod tests {
         assert!(!m.matches(&event("x", Severity::Normal, &[])));
         assert!(m.matches(&event("x", Severity::Urgent, &[])));
         assert!(m.matches(&event("x", Severity::Critical, &[])));
+    }
+
+    #[test]
+    fn misspelled_matcher_key_is_an_error() {
+        let json = r#"{"name":"r","match":{"source_prefx":"claude"},"channels":[]}"#;
+        assert!(serde_json::from_str::<Route>(json).is_err());
     }
 
     #[test]

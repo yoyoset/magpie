@@ -19,6 +19,8 @@ pub enum Tier {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+// Strict: a misspelled key in config.toml must be an error, not a silent default.
+#[serde(default, deny_unknown_fields)]
 pub struct EscalationPolicy {
     /// Wait this long without a response before notifying again.
     pub renotify_after_secs: u32,
