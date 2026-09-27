@@ -1,7 +1,13 @@
-//! Telegram Bot API: `sendMessage` with 确认 / 稍后 / 忽略 buttons.
+//! Telegram: the outbound channel (`sendMessage` with 确认 / 稍后 / 忽略
+//! buttons) plus the pieces the two-way poller needs.
 //!
-//! The buttons carry compact callback data (≤ 64 bytes, Telegram's limit) that
-//! the two-way poller decodes back into an ack.
+//! - [`api`]: the Bot API calls.
+//! - [`inbound`]: turning updates from the phone into intents.
+//! - Callback data is compact (≤ 64 bytes, Telegram's limit); every message
+//!   also carries a short `#abcd1234` id so a text reply can be traced back.
+
+pub mod api;
+pub mod inbound;
 
 use std::sync::Arc;
 
@@ -11,17 +17,15 @@ use uuid::Uuid;
 
 use crate::http::HttpClient;
 use crate::text::{repeat_note, severity_badge, truncate};
-use crate::{classify, BoxFuture, Channel, ChannelError, Message};
+use crate::{BoxFuture, Channel, ChannelError, Message};
 
-pub const DEFAULT_API_BASE: &str = "https://api.telegram.org";
+pub use api::{TelegramApi, DEFAULT_API_BASE};
 /// Telegram rejects texts over 4096 chars; leave room for title and markup.
 const MAX_BODY_CHARS: usize = 3000;
 pub const SNOOZE_MINUTES: u16 = 30;
 
 pub struct Telegram {
-    http: Arc<dyn HttpClient>,
-    api_base: String,
-    token: String,
+    api: TelegramApi,
     chat_id: i64,
 }
 
@@ -46,9 +50,7 @@ impl Telegram {
         chat_id: i64,
     ) -> Self {
         Self {
-            http,
-            api_base,
-            token,
+            api: TelegramApi::with_api_base(http, api_base, token),
             chat_id,
         }
     }
@@ -56,6 +58,7 @@ impl Telegram {
     fn payload(&self, msg: &Message) -> Value {
         let mut meta = vec![escape(&msg.source)];
         meta.extend(repeat_note(msg.attempt));
+        meta.push(inbound::short_ref(msg.event_id));
         let mut text = format!(
             "{} <b>{}</b>\n<i>{}</i>",
             severity_badge(msg.severity),
@@ -93,17 +96,10 @@ impl Channel for Telegram {
 
     fn deliver<'a>(&'a self, msg: &'a Message) -> BoxFuture<'a, Result<(), ChannelError>> {
         Box::pin(async move {
-            let url = format!("{}/bot{}/sendMessage", self.api_base, self.token);
-            let body = self.payload(msg);
-            let res = self.http.post_json(&url, &[], &body).await?;
-            if (200..300).contains(&res.status) {
-                return Ok(());
-            }
-            let detail = serde_json::from_str::<Value>(&res.body)
-                .ok()
-                .and_then(|v| v["description"].as_str().map(str::to_owned))
-                .unwrap_or_else(|| truncate(res.body.trim(), 200));
-            Err(classify(res.status, &detail))
+            self.api
+                .call("sendMessage", &self.payload(msg))
+                .await
+                .map(drop)
         })
     }
 }
