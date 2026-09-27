@@ -71,7 +71,7 @@ esac
 
   | Claude Code 事件 | Magpie 事件 |
   |---|---|
-  | `Stop` | normal「Claude 完成了 · <项目>」，正文是最后一条回复（截到 1500 字） |
+  | `Stop` | **info**（只进收件箱）「Claude 完成了 · <项目>」，正文是最后一条回复（截到 1500 字）。每轮都会触发，所以默认不弹；要弹就给 `args` 加 `"--stop-severity", "normal"` |
   | `Stop` 且 `stop_hook_active` | 不发（Claude 在被 hook 要求继续，这轮没结束） |
   | `Notification`：`permission_prompt` / `elicitation_*` / `agent_needs_input` | **urgent**「Claude 在等你」—— 没回应会一直追 |
   | `Notification`：`idle_prompt` | normal「Claude 空闲了」 |
@@ -82,7 +82,8 @@ esac
 
 ## Claude 桌面定时任务
 
-在定时任务 prompt 的末尾加一段：
+Magpie 不去读 Claude 的会话文件来猜定时任务结果（原因见 [RESEARCH-scheduled-tasks.md](RESEARCH-scheduled-tasks.md)），
+而是让任务自己报告。在定时任务 prompt 的末尾加一段：
 
 ```text
 最后一步：用 magpie 通知我结果（不要跳过）。
