@@ -16,11 +16,37 @@ magpie list --all --limit 50
 magpie list --reminders
 magpie ack 6bbe86                                   # id 前缀即可
 magpie ack 6bbe86 --snooze 30m | --reply 发 | --dismiss
+magpie ask "要推送吗？" --timeout 10m               # 等你回答，答案打到 stdout
 magpie unremind <reminder-id>
 magpie --json list                                  # 给脚本用
 ```
 
-退出码：0 成功 · 1 出错 · 2 参数错误 · 3 连不上 Magpie（没开）。
+退出码：0 成功 · 1 出错 · 2 参数错误 · 3 连不上 Magpie（没开）；`ask` 另有 4 被忽略 · 5 超时。
+
+## 让 AI 问你、等你回答（`magpie ask`）
+
+AI 或脚本需要你拍板时，用 `ask` 代替 `notify`：它发一条 urgent 事件（会升级、会上手机），然后**阻塞等你回答**，
+把答案打印到 stdout。你在桌面、桌宠、Telegram 任何一处回应都算。
+
+```bash
+answer=$(magpie ask "推送 5 条小红书到手机？" -b "下周素材已备好，见 outbox" --timeout 30m)
+case $? in
+  0) echo "同意：$answer" ;;      # 确认 → "acknowledged"；回复 → 你写的原话，比如「发」
+  4) echo "被忽略了" ;;
+  5) echo "30 分钟没人回答（事件还开着，之后回答也会记下）" ;;
+esac
+```
+
+给 Claude 的写法（放进 prompt 或 CLAUDE.md）：
+
+```text
+需要我决定的事，不要自己猜：运行 `magpie ask "<一句话问题>" -b "<背景>" --timeout 10m`，
+按 stdout 的回答继续；退出码 4 表示我拒绝，5 表示我没空回答，这两种都停下来别继续。
+```
+
+注意 Claude Code 的 Bash 工具单次最长 10 分钟，`--timeout` 不要超过它。
+
+为什么是「拉」不是「推」：调用方跑一条命令读 stdout 就行，不用开端口；Magpie 也永远不会往事件里带的地址发请求。
 
 ## Claude Code
 

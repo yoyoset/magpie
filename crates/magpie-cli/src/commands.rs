@@ -8,7 +8,8 @@ use magpie_core::{Event, EventDraft, Reminder, Schedule, Severity};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::cli::{AckArgs, EventArgs, ListArgs, RemindArgs};
+use crate::ask::{self, Status};
+use crate::cli::{AckArgs, AskArgs, EventArgs, ListArgs, RemindArgs};
 use crate::client::Client;
 use crate::{hook, when};
 
@@ -51,6 +52,56 @@ fn draft(args: EventArgs) -> anyhow::Result<EventDraft> {
         severity: args.severity.into(),
         tags: args.tags,
     })
+}
+
+/// How often `ask` checks for an answer. Local HTTP + `SQLite` read: cheap.
+const ASK_POLL: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Returns the process exit code (see `ask::Answer::exit_code`).
+pub fn ask(client: &Client, out: Output, args: AskArgs) -> anyhow::Result<u8> {
+    let timeout = when::duration(&args.timeout)?
+        .to_std()
+        .context("timeout must be positive")?;
+    let event: Event = client.post(
+        "/v1/events",
+        &draft(EventArgs {
+            title: args.title,
+            body: args.body,
+            severity: args.severity,
+            source: args.source,
+            tags: args.tags,
+        })?,
+    )?;
+    let id = event.id.to_string();
+    eprintln!(
+        "magpie: waiting for an answer to {} (up to {})…",
+        short(&id),
+        args.timeout
+    );
+
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let status: Status = client.get(&format!("/v1/events/{id}"), &[])?;
+        if let Some(answer) = ask::answer(&status) {
+            out.value(
+                &json!({ "id": id, "answer": answer.stdout(), "ack": status.latest_ack }),
+                || answer.stdout().to_owned(),
+            );
+            return Ok(answer.exit_code());
+        }
+        if std::time::Instant::now() >= deadline {
+            eprintln!(
+                "magpie: no answer within {}; event {} stays open",
+                args.timeout,
+                short(&id)
+            );
+            out.value(&json!({ "id": id, "answer": null }), String::new);
+            return Ok(ask::TIMEOUT_EXIT);
+        }
+        std::thread::sleep(
+            ASK_POLL.min(deadline.saturating_duration_since(std::time::Instant::now())),
+        );
+    }
 }
 
 pub fn notify(client: &Client, out: Output, args: EventArgs) -> anyhow::Result<()> {

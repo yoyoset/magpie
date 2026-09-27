@@ -26,6 +26,9 @@ pub enum Command {
     Remind(RemindArgs),
     /// List events or reminders.
     List(ListArgs),
+    /// Ask a human and wait for the answer; prints it on stdout.
+    /// Exit: 0 answered/acknowledged · 4 dismissed · 5 timed out (event stays open).
+    Ask(AskArgs),
     /// Respond to an event: acknowledge (default), snooze, reply or dismiss.
     Ack(AckArgs),
     /// Delete a reminder.
@@ -105,6 +108,25 @@ pub struct RemindArgs {
     /// 5-field cron in local time: `50 19 * * 1,3,5`.
     #[arg(long)]
     pub cron: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct AskArgs {
+    /// The question, e.g. "推送 5 条到手机？".
+    pub title: String,
+    /// Context the human needs to answer. Use `-` to read it from stdin.
+    #[arg(short, long, default_value = "")]
+    pub body: String,
+    /// Defaults to urgent: a question someone is blocked on should escalate.
+    #[arg(short, long, value_enum, default_value_t = SeverityArg::Urgent)]
+    pub severity: SeverityArg,
+    #[arg(long, env = "MAGPIE_SOURCE", default_value = "cli")]
+    pub source: String,
+    #[arg(short, long = "tag")]
+    pub tags: Vec<String>,
+    /// Give up waiting after this long: `10m`, `2h`.
+    #[arg(long, default_value = "10m")]
+    pub timeout: String,
 }
 
 #[derive(Debug, Args)]
