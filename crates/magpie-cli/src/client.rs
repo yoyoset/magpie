@@ -7,6 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 
+const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
+
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     /// Magpie is not running (or not reachable). Distinct so callers can say so plainly.
@@ -30,6 +32,10 @@ impl Client {
         let agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .timeout_global(Some(timeout))
+            // Loopback connects in well under a millisecond when Magpie is up.
+            // When it is down, Windows retries the SYN for ~2 s before reporting
+            // "refused"; cap that so hooks don't stall the agent.
+            .timeout_connect(Some(CONNECT_TIMEOUT))
             .build()
             .new_agent();
         Self { agent, conn }
