@@ -1,0 +1,13 @@
+{
+  "name": "magpie",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build tooling for the Magpie desktop app (the UI lives in ui/).",
+  "scripts": {
+    "tauri": "tauri",
+    "release": "tauri build --config app/tauri.release.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  }
+}

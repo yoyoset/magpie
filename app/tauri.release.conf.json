@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": {
+      "script": "node scripts/prebuild.mjs",
+      "cwd": ".."
+    }
+  },
+  "bundle": {
+    "externalBin": [
+      "binaries/magpie"
+    ]
+  }
+}

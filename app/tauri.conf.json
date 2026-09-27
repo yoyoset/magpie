@@ -23,7 +23,27 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "vii",
+    "shortDescription": "Magpie 喜鹊 — desktop messenger between AI agents and you",
+    "longDescription": "Collects results from AI agents, scheduled tasks and scripts, and makes sure a human sees them: desktop toasts, a desktop pet, full-screen alerts and phone notifications, with replies relayed back.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": true
+      }
+    }
   }
 }
