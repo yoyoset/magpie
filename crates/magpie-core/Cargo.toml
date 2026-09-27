@@ -8,11 +8,13 @@ license.workspace = true
 
 [dependencies]
 chrono.workspace = true
+croner = "4.0.0"
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+chrono-tz = "0.10.4"
 serde_json.workspace = true
 
 [lints]
