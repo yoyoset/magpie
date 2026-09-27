@@ -81,6 +81,9 @@ impl Default for Desktop {
 pub struct Telegram {
     /// Your chat with the bot. Bot token: credential store, `telegram-bot-token`.
     pub chat_id: i64,
+    /// Only for a self-hosted Bot API server (or tests); defaults to api.telegram.org.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_base: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,6 +148,11 @@ impl Settings {
         if let Some(t) = &self.telegram {
             if t.chat_id == 0 {
                 problems.push("telegram.chat_id must not be 0".into());
+            }
+            if let Some(base) = &t.api_base {
+                if !is_http_url(base) {
+                    problems.push(format!("telegram.api_base `{base}` is not an http(s) URL"));
+                }
             }
         }
         if let Some(n) = &self.ntfy {
@@ -392,7 +400,10 @@ mod tests {
     #[test]
     fn save_roundtrip() {
         let s = Settings {
-            telegram: Some(Telegram { chat_id: 7 }),
+            telegram: Some(Telegram {
+                chat_id: 7,
+                api_base: None,
+            }),
             ..Settings::default()
         };
         let text = toml::to_string_pretty(&s).unwrap();
