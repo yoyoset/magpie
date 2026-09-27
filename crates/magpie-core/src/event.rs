@@ -60,6 +60,12 @@ impl Severity {
 pub struct EventSource(String);
 
 impl EventSource {
+    /// For values that were validated before, e.g. read back from storage.
+    /// New input goes through [`EventDraft::validate`].
+    pub fn from_trusted(source: String) -> Self {
+        Self(source)
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -106,7 +112,8 @@ impl Default for Severity {
     }
 }
 
-/// A validated event. Only constructible through [`EventDraft::validate`].
+/// A validated event. New events come from [`EventDraft::validate`]; storage
+/// rebuilds them from rows that were validated on the way in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Event {
     pub id: EventId,
