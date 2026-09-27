@@ -32,7 +32,7 @@
 - [x] **M8 桌宠**：透明置顶窗口、喜鹊形象、气泡、idle/alert/sleep 状态、拖动、穿透点击
 - [x] **M9 手机双向**：Telegram getUpdates 长轮询，按钮回调 → Ack，引用回复 → Replied；用 `tools/mock_telegram.py` 实测全流程
 - [x] **M9b 回传来源**：改为「拉」模型 `magpie ask`：发 urgent 事件并阻塞等回答，答案打到 stdout（退出码 0/4/5）。理由见「这次不做」
-- [ ] **M10 critical 升级**：紧急 toast + 全屏遮罩 + 声音，直到确认
+- [x] **M10 critical 升级**：全屏遮罩 + WebAudio 提示音 + 队列，直到确认；托盘/Alt+F4 可临时关
 - [ ] **M11 交付**：NSIS 安装包、GitHub Actions（fmt/clippy/test/build）、版本号与 CHANGELOG
 - [ ] **M12 调研**：能否直接读取 Claude 桌面定时任务的运行结果（本地会话文件）做自动接入
 
@@ -52,9 +52,12 @@
 - **看一眼屏幕**：运行 `F:/my_ai/magpie/target/debug/magpie-app.exe`，再在终端跑 `magpie notify 测试`，
   确认右下角有「鹊」托盘图标、弹出了 Windows 通知。日志显示通知 API 返回成功，但未打包的调试版在 Windows 上
   通知可能显示成别的应用名或被系统吞掉，只有肉眼能确认。
+- **按一次 Alt+F4**：出现全屏提醒时按 Alt+F4，确认它能关掉（代码走同一个隐藏逻辑，但自动化里按不了键）。
 - **ntfy（可选）**：手机装 ntfy App 并订阅一个只有你知道的 topic 名。不装也行，Telegram 够用。
 
 ## 已知问题
+
+- toast 没做 Windows「urgent」场景（插件不支持），专注助手开着时 toast 可能被收起；critical 靠全屏窗口兜底，那是普通窗口不受专注助手影响。
 
 - 桌宠窗口 300×320 的透明区域会挡住下面窗口的点击（没做逐像素穿透）。窗口已尽量小；要做穿透需按鼠标位置动态切 `set_ignore_cursor_events`。
 
@@ -81,3 +84,4 @@
 - 2026-09-28 M8：桌宠（SVG 喜鹊 + 三种情绪 + 气泡 + 计数角标 + pet 渠道），WebView2 截图与点击全流程验证。
 - 2026-09-28 M9：Telegram 双向（按钮/引用回复/陌生人忽略/offset），对本地假 Bot API 跑通；真机仍等 token。
 - 2026-09-28 M9b：`magpie ask`（回复/忽略/snooze 后确认/超时/JSON 五种情况两进程实测）。推模型不做，理由已记。
+- 2026-09-28 M10：全屏接管。实测 WebView2 下 AudioContext 无需手势即 running，所以不用 MessageBeep/unsafe。Alt+F4 待人工确认。另：852b50f 只跑了测试漏跑 clippy，已补提交修正。
