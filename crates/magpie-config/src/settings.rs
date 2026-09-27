@@ -61,6 +61,9 @@ impl Default for Api {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+// Independent on/off switches that mirror `[desktop]` keys in config.toml;
+// an enum or bitflags would make the file harder to read, not the code safer.
+#[allow(clippy::struct_excessive_bools)]
 pub struct Desktop {
     pub toast: bool,
     pub pet: bool,
