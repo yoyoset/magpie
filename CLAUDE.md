@@ -29,6 +29,9 @@ cargo test --workspace
 ## 踩过的坑
 
 - **门禁要写成条件提交**（`if 全绿; then git commit; fi`），否则测试红着也会提交：852b50f、8f72068 都是这样漏的。
+- **脚本式替换失败不能让提交继续**：`python edit.py; if 门禁; then commit` 里 python 断言失败只结束 python，
+  门禁照样绿（少一行 builder 调用也能编译），结果提交说明写了没发生的改动（0255ba9→51a3d84）。
+  写成 `python edit.py && if 门禁; then commit; fi`，并在提交前 `grep` 确认关键改动真的在文件里。
 - rustfmt 会把长断言折行，之后用 `sed`/单行 `replace` 改断言会静默不匹配；改前先 `grep -n` 看实际形态。
 
 - `cargo build -p A -p B --example X` **只编 example**，不编 A 的二进制。测 CLI 前单独 `cargo build -p magpie-cli`，
