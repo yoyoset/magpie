@@ -49,6 +49,17 @@ pub struct FollowUps {
     pub next: Option<NaiveDateTime>,
 }
 
+/// Event titles are capped at 200 chars; a prefix plus a long item title could exceed it.
+fn title(s: String) -> String {
+    const MAX: usize = crate::event::MAX_TITLE_CHARS;
+    if s.chars().count() <= MAX {
+        return s;
+    }
+    let mut cut: String = s.chars().take(MAX - 1).collect();
+    cut.push('…');
+    cut
+}
+
 fn hm(t: NaiveTime) -> String {
     t.format("%H:%M").to_string()
 }
@@ -139,7 +150,7 @@ pub fn follow_ups<H: BuildHasher>(
             format!("due:{}:{today}", item.id),
             &|| EventDraft {
                 source: SOURCE.into(),
-                title: format!("{} {}", hm(at), item.title),
+                title: title(format!("{} {}", hm(at), item.title)),
                 body: [item.action.as_str(), item.why.as_str()]
                     .iter()
                     .filter(|t| !t.is_empty())
@@ -157,7 +168,7 @@ pub fn follow_ups<H: BuildHasher>(
             &|| {
                 EventDraft {
                 source: SOURCE.into(),
-                title: format!("做完了吗：{}", item.title),
+                title: title(format!("做完了吗：{}", item.title)),
                 body: "做完了就在「今天」页勾掉（顺手记下用了多久）；没做就点「明天」挪走，晚上收尾时再排。".into(),
                 severity: Severity::Normal,
                 tags: tags(Some(item)),
@@ -289,6 +300,27 @@ mod tests {
         let f = follow_ups(&[long], 0, at(15, 0), &sent, FollowUpSettings::default());
         assert!(f.send.is_empty());
         assert_eq!(f.next, Some(at(16, 0)));
+    }
+
+    #[test]
+    fn long_item_titles_still_make_valid_events() {
+        let long = item(&"画".repeat(200), Some((10, 0)), None);
+        let f = follow_ups(
+            &[long],
+            0,
+            at(12, 0),
+            &HashSet::new(),
+            FollowUpSettings::default(),
+        );
+        for x in f.send {
+            assert!(
+                x.draft
+                    .validate(crate::event::EventId::new(), now_utc())
+                    .is_ok(),
+                "{}",
+                x.key
+            );
+        }
     }
 
     #[test]

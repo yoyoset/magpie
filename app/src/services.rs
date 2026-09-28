@@ -79,12 +79,18 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
         }
     });
 
-    let dispatcher = Arc::new(Dispatcher::new(
-        Arc::clone(&boot.store),
-        built.channels,
-        boot.settings.routes.clone(),
-        boot.settings.escalation,
-    ));
+    let dispatcher = Arc::new(
+        Dispatcher::new(
+            Arc::clone(&boot.store),
+            built.channels,
+            boot.settings.routes.clone(),
+            boot.settings.escalation,
+        )
+        .with_followups(magpie_core::FollowUpSettings {
+            briefing_at: boot.settings.planning.briefing_time(),
+            ..magpie_core::FollowUpSettings::default()
+        }),
+    );
     tauri::async_runtime::spawn(magpie_runtime::run(dispatcher, changed, chrono::Local));
 
     if boot.settings.desktop.pet {

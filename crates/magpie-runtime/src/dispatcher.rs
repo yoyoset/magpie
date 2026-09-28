@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use magpie_channels::{Channel, Message};
 use magpie_core::{
-    select_channels, ChannelSpec, Delivery, DeliveryOutcome, EscalationPolicy, Event, EventId,
-    NextAction, Route, Tier,
+    follow_ups, select_channels, ChannelSpec, Delivery, DeliveryOutcome, EscalationPolicy, Event,
+    EventId, FollowUpSettings, ItemKind, ItemStatus, NextAction, Route, Tier,
 };
-use magpie_store::{Store, StoreError};
+use magpie_store::{DayFilter, ItemQuery, Store, StoreError};
 use tokio::task::JoinSet;
 
 /// Recorded as the channel when routing selected nothing, so a muted or
@@ -17,6 +17,7 @@ pub const NO_CHANNEL: &str = "(none)";
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TickReport {
     pub reminders_fired: u32,
+    pub followups_sent: u32,
     pub deliveries_sent: u32,
     pub deliveries_failed: u32,
     /// Latest moment the next tick is needed; `None` = nothing scheduled.
@@ -35,6 +36,7 @@ pub struct Dispatcher {
     specs: Vec<ChannelSpec>,
     routes: Vec<Route>,
     policy: EscalationPolicy,
+    followups: Option<FollowUpSettings>,
 }
 
 impl std::fmt::Debug for Dispatcher {
@@ -67,7 +69,16 @@ impl Dispatcher {
             specs,
             routes,
             policy,
+            followups: None,
         }
+    }
+
+    /// Enables the planner's own nudges: morning briefing, due reminders and
+    /// "done?" checks for today's items.
+    #[must_use]
+    pub fn with_followups(mut self, settings: FollowUpSettings) -> Self {
+        self.followups = Some(settings);
+        self
     }
 
     fn store(&self) -> std::sync::MutexGuard<'_, Store> {
@@ -87,6 +98,7 @@ impl Dispatcher {
     ) -> Result<TickReport, StoreError> {
         let mut report = TickReport::default();
         self.fire_reminders(now, tz, &mut report)?;
+        self.follow_up(now, tz, &mut report)?;
 
         let open = self.store().events_needing_attention()?;
         for event in open {
@@ -122,6 +134,54 @@ impl Dispatcher {
                     report.wake_at(next);
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn follow_up<Tz: TimeZone>(
+        &self,
+        now: DateTime<Utc>,
+        tz: &Tz,
+        report: &mut TickReport,
+    ) -> Result<(), StoreError> {
+        let Some(settings) = self.followups else {
+            return Ok(());
+        };
+        let local = now.with_timezone(tz).naive_local();
+        let today = local.date();
+        let store = self.store();
+        let todays = store.list_items(&ItemQuery {
+            kind: Some(ItemKind::Todo),
+            day: DayFilter::On(today),
+            ..ItemQuery::default()
+        })?;
+        let overdue = store
+            .list_items(&ItemQuery {
+                status: Some(ItemStatus::Open),
+                kind: Some(ItemKind::Todo),
+                day: DayFilter::Before(today),
+                ..ItemQuery::default()
+            })?
+            .len();
+        // Keys embed their day; two days of history covers any clock skew.
+        let sent = store.followup_keys_since(now - TimeDelta::days(2))?;
+        let plan = follow_ups(&todays, overdue, local, &sent, settings);
+        for f in plan.send {
+            match f.draft.validate(EventId::new(), now) {
+                Ok(event) => {
+                    store.insert_event(&event)?;
+                    report.followups_sent += 1;
+                }
+                Err(e) => tracing::error!(key = %f.key, error = %e, "invalid follow-up"),
+            }
+            // Recorded even if invalid, so a bad one can't loop every tick.
+            store.mark_followup(&f.key, now)?;
+        }
+        if let Some(next) = plan
+            .next
+            .and_then(|n| tz.from_local_datetime(&n).earliest())
+        {
+            report.wake_at(next.with_timezone(&Utc));
         }
         Ok(())
     }

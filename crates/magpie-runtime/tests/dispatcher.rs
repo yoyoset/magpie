@@ -285,3 +285,72 @@ async fn run_loop_reacts_to_change_notification() {
     }
     handle.abort();
 }
+
+#[tokio::test]
+async fn followups_are_sent_once_and_delivered_in_the_same_tick() {
+    use chrono::{FixedOffset, NaiveDate, NaiveTime};
+    use magpie_core::{FollowUpSettings, ItemDraft, ItemId};
+
+    let cst = FixedOffset::east_opt(8 * 3600).unwrap();
+    // 20:56 Beijing time on 2026-09-28.
+    let now = Utc.with_ymd_and_hms(2026, 9, 28, 12, 56, 0).unwrap();
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let toast = FakeChannel::new("toast", Reach::Local);
+    let dispatcher = Dispatcher::new(
+        Arc::clone(&store),
+        vec![toast.clone() as Arc<dyn Channel>],
+        vec![],
+        POLICY,
+    )
+    .with_followups(FollowUpSettings::default());
+
+    let item = ItemDraft {
+        title: "发小红书第一条".into(),
+        day: NaiveDate::from_ymd_opt(2026, 9, 28),
+        at: NaiveTime::from_hms_opt(21, 0, 0),
+        estimate_min: Some(10),
+        ..ItemDraft::default()
+    }
+    .validate(ItemId::new(), now)
+    .unwrap();
+    store.lock().unwrap().save_item(&item).unwrap();
+
+    let r = dispatcher.tick(now, &cst).await.unwrap();
+    assert_eq!(
+        r.followups_sent, 2,
+        "briefing (after 09:00) + due (5 min before 21:00)"
+    );
+    let titles: Vec<String> = toast
+        .seen
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|m| m.title.clone())
+        .collect();
+    assert!(
+        titles.contains(&"21:00 发小红书第一条".to_owned()),
+        "{titles:?}"
+    );
+    assert!(
+        titles.iter().any(|t| t.starts_with("今天 1 件事")),
+        "{titles:?}"
+    );
+    // Next look is the earliest of: the urgent due reminder's re-notify
+    // (12:56 + 10 min) and the "done?" check (21:30 local = 13:30 UTC).
+    assert_eq!(
+        r.next_wake,
+        Some(Utc.with_ymd_and_hms(2026, 9, 28, 13, 6, 0).unwrap())
+    );
+
+    let again = dispatcher
+        .tick(now + TimeDelta::minutes(1), &cst)
+        .await
+        .unwrap();
+    assert_eq!(again.followups_sent, 0, "dedup keys persisted");
+
+    let later = dispatcher
+        .tick(Utc.with_ymd_and_hms(2026, 9, 28, 13, 31, 0).unwrap(), &cst)
+        .await
+        .unwrap();
+    assert_eq!(later.followups_sent, 1, "the done? check");
+}
