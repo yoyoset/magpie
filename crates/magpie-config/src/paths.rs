@@ -4,14 +4,20 @@ use std::path::{Path, PathBuf};
 
 use crate::{ConfigError, Result};
 
+pub const HOME_ENV: &str = "MAGPIE_HOME";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paths {
     root: PathBuf,
 }
 
 impl Paths {
-    /// The per-user default location.
+    /// `MAGPIE_HOME` if set (portable installs, tests that must not touch real
+    /// data), otherwise the per-user default.
     pub fn default_location() -> Result<Self> {
+        if let Some(home) = std::env::var_os(HOME_ENV).filter(|v| !v.is_empty()) {
+            return Ok(Self::at(home));
+        }
         dirs::data_dir()
             .map(|d| Self::at(d.join("magpie")))
             .ok_or(ConfigError::NoDataDir)
