@@ -49,6 +49,30 @@ const STEPS: &[&str] = &[
         last_fired  INTEGER
     );
     ",
+    // v2: todos and ideas
+    r"
+    CREATE TABLE items (
+        id            TEXT PRIMARY KEY,
+        kind          TEXT NOT NULL,       -- idea | todo
+        status        TEXT NOT NULL,       -- open | done | dropped
+        title         TEXT NOT NULL,
+        why           TEXT NOT NULL,
+        action        TEXT NOT NULL,
+        source        TEXT NOT NULL,
+        area          TEXT NOT NULL,
+        day           TEXT,                -- local YYYY-MM-DD, sorts as text
+        at            TEXT,                -- local HH:MM:SS
+        deadline      TEXT,                -- local YYYY-MM-DD
+        estimate_min  INTEGER,
+        actual_min    INTEGER,
+        blocking      INTEGER NOT NULL,
+        deferrals     INTEGER NOT NULL,
+        created_at    INTEGER NOT NULL,    -- UTC ms
+        updated_at    INTEGER NOT NULL,
+        done_at       INTEGER
+    );
+    CREATE INDEX items_by_status_day ON items (status, day);
+    ",
 ];
 
 pub fn latest() -> u32 {
@@ -85,6 +109,34 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(v, latest());
+    }
+
+    #[test]
+    fn upgrades_existing_v1_database_without_losing_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(STEPS[0]).unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.execute(
+            "INSERT INTO events (id, source, title, body, severity, tags, created_at)
+             VALUES ('e1', 'cli', 'kept', '', 'normal', '[]', 0)",
+            [],
+        )
+        .unwrap();
+
+        apply(&mut conn).unwrap();
+
+        let v: u32 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 2);
+        let title: String = conn
+            .query_row("SELECT title FROM events WHERE id = 'e1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "kept");
+        let items: i64 = conn
+            .query_row("SELECT COUNT(*) FROM items", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(items, 0);
     }
 
     #[test]

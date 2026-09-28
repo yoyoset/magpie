@@ -10,6 +10,7 @@
 mod codec;
 mod error;
 mod events;
+mod items;
 mod migrations;
 mod reminders;
 
@@ -19,6 +20,7 @@ use rusqlite::Connection;
 
 pub use error::StoreError;
 pub use events::{EventQuery, EventRecord};
+pub use items::{DayFilter, ItemQuery};
 
 pub type Result<T> = std::result::Result<T, StoreError>;
 
