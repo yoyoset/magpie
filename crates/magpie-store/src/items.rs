@@ -203,6 +203,28 @@ impl Store {
     }
 }
 
+impl Store {
+    /// What the planner may consider for `day`: open todos on or before it plus
+    /// unscheduled ones; and the done history used for estimate calibration.
+    pub fn planning_inputs(&self, day: NaiveDate) -> Result<(Vec<Item>, Vec<Item>)> {
+        let open_todo = |day: DayFilter| ItemQuery {
+            status: Some(ItemStatus::Open),
+            kind: Some(ItemKind::Todo),
+            day,
+            limit: 500,
+        };
+        let next = day.succ_opt().unwrap_or(day);
+        let mut items = self.list_items(&open_todo(DayFilter::Before(next)))?;
+        items.extend(self.list_items(&open_todo(DayFilter::Unscheduled))?);
+        let history = self.list_items(&ItemQuery {
+            status: Some(ItemStatus::Done),
+            limit: 500,
+            ..ItemQuery::default()
+        })?;
+        Ok((items, history))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

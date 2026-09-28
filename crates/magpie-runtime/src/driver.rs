@@ -20,11 +20,12 @@ where
         let now = Utc::now();
         let sleep_for = match dispatcher.tick(now, &tz).await {
             Ok(report) => {
-                if report.reminders_fired
-                    + report.followups_sent
-                    + report.deliveries_sent
-                    + report.deliveries_failed
-                    > 0
+                if report.reviewed
+                    || report.reminders_fired
+                        + report.followups_sent
+                        + report.deliveries_sent
+                        + report.deliveries_failed
+                        > 0
                 {
                     tracing::info!(?report, "tick");
                 }

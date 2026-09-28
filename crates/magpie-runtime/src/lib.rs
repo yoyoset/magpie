@@ -8,5 +8,5 @@
 mod dispatcher;
 mod driver;
 
-pub use dispatcher::{Dispatcher, TickReport, NO_CHANNEL};
+pub use dispatcher::{Dispatcher, ReviewSettings, TickReport, NO_CHANNEL};
 pub use driver::run;

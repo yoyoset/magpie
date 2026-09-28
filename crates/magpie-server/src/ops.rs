@@ -265,37 +265,13 @@ pub async fn change_item(
 
 // ---------- planning ----------
 
-/// Everything the planner may consider for `day`: open todos on or before it,
-/// plus unscheduled ones. And the done history for calibration.
-fn planning_inputs(
-    s: &magpie_store::Store,
-    day: NaiveDate,
-) -> Result<(Vec<Item>, Vec<Item>), ApiError> {
-    let open_todo = |day: DayFilter| ItemQuery {
-        status: Some(ItemStatus::Open),
-        kind: Some(ItemKind::Todo),
-        day,
-        limit: MAX_PAGE,
-    };
-    let mut items = s.list_items(&open_todo(DayFilter::Before(
-        day + chrono::TimeDelta::days(1),
-    )))?;
-    items.extend(s.list_items(&open_todo(DayFilter::Unscheduled))?);
-    let history = s.list_items(&ItemQuery {
-        status: Some(ItemStatus::Done),
-        limit: MAX_PAGE,
-        ..ItemQuery::default()
-    })?;
-    Ok((items, history))
-}
-
 /// A proposal for `day`. Changes nothing.
 pub async fn plan(state: &AppState, day: NaiveDate) -> Result<Plan, ApiError> {
     let settings = state.planner;
     let today = state.clock.today();
     state
         .with_store(move |s| {
-            let (items, history) = planning_inputs(s, day)?;
+            let (items, history) = s.planning_inputs(day)?;
             Ok(plan_day(
                 &items,
                 day,
@@ -315,7 +291,7 @@ pub async fn apply_plan(state: &AppState, day: NaiveDate) -> Result<Plan, ApiErr
     let today = state.clock.today();
     let plan = state
         .with_store(move |s| {
-            let (items, history) = planning_inputs(s, day)?;
+            let (items, history) = s.planning_inputs(day)?;
             let plan = plan_day(
                 &items,
                 day,

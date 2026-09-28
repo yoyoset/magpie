@@ -354,3 +354,115 @@ async fn followups_are_sent_once_and_delivered_in_the_same_tick() {
         .unwrap();
     assert_eq!(later.followups_sent, 1, "the done? check");
 }
+
+#[tokio::test]
+async fn evening_review_carries_over_summarises_once_and_weekly_on_sunday() {
+    use chrono::{FixedOffset, NaiveDate, NaiveTime};
+    use magpie_core::{ItemChange, ItemDraft, ItemId, PlannerSettings};
+    use magpie_runtime::ReviewSettings;
+    use magpie_store::{DayFilter, ItemQuery};
+
+    let cst = FixedOffset::east_opt(8 * 3600).unwrap();
+    let day = |d: u32| NaiveDate::from_ymd_opt(2026, 9, d).unwrap();
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let toast = FakeChannel::new("toast", Reach::Local);
+    let dispatcher = Dispatcher::new(
+        Arc::clone(&store),
+        vec![toast.clone() as Arc<dyn Channel>],
+        vec![],
+        POLICY,
+    )
+    .with_review(ReviewSettings {
+        at: NaiveTime::from_hms_opt(21, 0, 0).unwrap(),
+        planner: PlannerSettings {
+            capacity_min: 180,
+            default_estimate_min: 30,
+        },
+    });
+    let t0 = Utc.with_ymd_and_hms(2026, 9, 28, 1, 0, 0).unwrap();
+    let mk = |title: &str, est: u32| {
+        ItemDraft {
+            title: title.into(),
+            day: Some(day(28)),
+            estimate_min: Some(est),
+            ..ItemDraft::default()
+        }
+        .validate(ItemId::new(), t0)
+        .unwrap()
+    };
+    let did = ItemChange::Done {
+        actual_min: Some(45),
+    }
+    .apply(mk("回客户消息", 20), t0)
+    .unwrap();
+    let left = mk("定价拍板", 45);
+    {
+        let s = store.lock().unwrap();
+        s.save_item(&did).unwrap();
+        s.save_item(&left).unwrap();
+    }
+
+    // 20:30 Monday: not yet; wake at 21:00.
+    let early = dispatcher
+        .tick(Utc.with_ymd_and_hms(2026, 9, 28, 12, 30, 0).unwrap(), &cst)
+        .await
+        .unwrap();
+    assert!(!early.reviewed);
+    assert_eq!(
+        early.next_wake,
+        Some(Utc.with_ymd_and_hms(2026, 9, 28, 13, 0, 0).unwrap())
+    );
+
+    // 21:05 Monday: review runs.
+    let r = dispatcher
+        .tick(Utc.with_ymd_and_hms(2026, 9, 28, 13, 5, 0).unwrap(), &cst)
+        .await
+        .unwrap();
+    assert!(r.reviewed);
+    let moved = store.lock().unwrap().get_item(left.id).unwrap().unwrap();
+    assert_eq!(
+        (moved.day, moved.deferrals),
+        (Some(day(29)), 1),
+        "leftover carried to tomorrow"
+    );
+    let seen = toast.seen.lock().unwrap().clone();
+    let closing = seen
+        .iter()
+        .find(|m| m.title.starts_with("收尾"))
+        .expect("closing event delivered");
+    assert_eq!(closing.title, "收尾：今天完成 1/2");
+    assert!(closing.body.contains("多了 25"), "{}", closing.body);
+    assert!(closing.body.contains("定价拍板"), "{}", closing.body);
+    assert!(
+        !seen.iter().any(|m| m.title.starts_with("周复盘")),
+        "not Sunday"
+    );
+
+    let again = dispatcher
+        .tick(Utc.with_ymd_and_hms(2026, 9, 28, 13, 20, 0).unwrap(), &cst)
+        .await
+        .unwrap();
+    assert!(!again.reviewed, "once per day");
+    let tomorrow = store
+        .lock()
+        .unwrap()
+        .list_items(&ItemQuery {
+            day: DayFilter::On(day(29)),
+            ..ItemQuery::default()
+        })
+        .unwrap();
+    assert_eq!(tomorrow.len(), 1, "carried once, not twice");
+
+    // Sunday 2026-10-04 21:10: closing + weekly.
+    let sun = dispatcher
+        .tick(Utc.with_ymd_and_hms(2026, 10, 4, 13, 10, 0).unwrap(), &cst)
+        .await
+        .unwrap();
+    assert!(sun.reviewed);
+    assert!(toast
+        .seen
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|m| m.title.starts_with("周复盘")));
+}

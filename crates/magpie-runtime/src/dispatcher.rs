@@ -1,10 +1,13 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, TimeDelta, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeDelta, TimeZone, Utc};
 use magpie_channels::{Channel, Message};
+use magpie_core::planning::{plan_day, Calibration};
+use magpie_core::review::{closing_event, review_day, review_week, weekly_event};
 use magpie_core::{
     follow_ups, select_channels, ChannelSpec, Delivery, DeliveryOutcome, EscalationPolicy, Event,
-    EventId, FollowUpSettings, ItemKind, ItemStatus, NextAction, Route, Tier,
+    EventId, FollowUpSettings, ItemChange, ItemKind, ItemStatus, NextAction, PlannerSettings,
+    Route, Tier,
 };
 use magpie_store::{DayFilter, ItemQuery, Store, StoreError};
 use tokio::task::JoinSet;
@@ -18,6 +21,8 @@ pub const NO_CHANNEL: &str = "(none)";
 pub struct TickReport {
     pub reminders_fired: u32,
     pub followups_sent: u32,
+    /// A closing (and on Sundays weekly) review ran this tick.
+    pub reviewed: bool,
     pub deliveries_sent: u32,
     pub deliveries_failed: u32,
     /// Latest moment the next tick is needed; `None` = nothing scheduled.
@@ -37,6 +42,14 @@ pub struct Dispatcher {
     routes: Vec<Route>,
     policy: EscalationPolicy,
     followups: Option<FollowUpSettings>,
+    review: Option<ReviewSettings>,
+}
+
+/// When the evening review runs and how it plans tomorrow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReviewSettings {
+    pub at: chrono::NaiveTime,
+    pub planner: PlannerSettings,
 }
 
 impl std::fmt::Debug for Dispatcher {
@@ -70,7 +83,16 @@ impl Dispatcher {
             routes,
             policy,
             followups: None,
+            review: None,
         }
+    }
+
+    /// Enables the evening review: carry today's open todos to tomorrow, send
+    /// the closing summary with tomorrow's draft, and a weekly one on Sundays.
+    #[must_use]
+    pub fn with_review(mut self, settings: ReviewSettings) -> Self {
+        self.review = Some(settings);
+        self
     }
 
     /// Enables the planner's own nudges: morning briefing, due reminders and
@@ -98,6 +120,7 @@ impl Dispatcher {
     ) -> Result<TickReport, StoreError> {
         let mut report = TickReport::default();
         self.fire_reminders(now, tz, &mut report)?;
+        self.closing_review(now, tz, &mut report)?;
         self.follow_up(now, tz, &mut report)?;
 
         let open = self.store().events_needing_attention()?;
@@ -135,6 +158,76 @@ impl Dispatcher {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn closing_review<Tz: TimeZone>(
+        &self,
+        now: DateTime<Utc>,
+        tz: &Tz,
+        report: &mut TickReport,
+    ) -> Result<(), StoreError> {
+        let Some(settings) = self.review else {
+            return Ok(());
+        };
+        let local = now.with_timezone(tz).naive_local();
+        let today = local.date();
+        let due = today.and_time(settings.at);
+        let key = format!("review:{today}");
+        let store = self.store();
+        if local < due {
+            if let Some(t) = tz.from_local_datetime(&due).earliest() {
+                report.wake_at(t.with_timezone(&Utc));
+            }
+            return Ok(());
+        }
+        if store
+            .followup_keys_since(now - TimeDelta::days(2))?
+            .contains(&key)
+        {
+            return Ok(());
+        }
+        // Mark first: a crash halfway must not repeat the carry-over tomorrow.
+        store.mark_followup(&key, now)?;
+
+        let todays = store.list_items(&ItemQuery {
+            kind: Some(ItemKind::Todo),
+            day: DayFilter::On(today),
+            ..ItemQuery::default()
+        })?;
+        let review = review_day(&todays, today);
+        let tomorrow = today + TimeDelta::days(1);
+        for item in todays.iter().filter(|i| review.leftovers.contains(&i.id)) {
+            match (ItemChange::Defer { to: tomorrow }).apply(item.clone(), now) {
+                Ok(moved) => store.save_item(&moved)?,
+                Err(e) => tracing::error!(item = %item.id, error = %e, "carry-over failed"),
+            }
+        }
+        let (items, history) = store.planning_inputs(tomorrow)?;
+        let plan = plan_day(
+            &items,
+            tomorrow,
+            today,
+            settings.planner,
+            &Calibration::from_history(&history),
+        );
+        let mut drafts = vec![closing_event(&review, &plan)];
+        if today.weekday() == chrono::Weekday::Sun {
+            let mut all = history;
+            all.extend(items);
+            all.extend(store.list_items(&ItemQuery {
+                kind: Some(ItemKind::Idea),
+                ..ItemQuery::default()
+            })?);
+            drafts.push(weekly_event(&review_week(&all, today, tz)));
+        }
+        for draft in drafts {
+            match draft.validate(EventId::new(), now) {
+                Ok(event) => store.insert_event(&event)?,
+                Err(e) => tracing::error!(error = %e, "invalid review event"),
+            }
+        }
+        report.reviewed = true;
         Ok(())
     }
 
