@@ -49,7 +49,11 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
         boot.api_token.clone(),
         Arc::new(SystemClock),
         Arc::clone(&changed),
-    );
+    )
+    .with_planner(magpie_core::PlannerSettings {
+        capacity_min: boot.settings.planning.daily_minutes,
+        default_estimate_min: boot.settings.planning.default_estimate_min,
+    });
     let channel_ids = built.channels.iter().map(|c| c.id().to_owned()).collect();
     app.manage(commands::Services {
         state: state.clone(),

@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Context};
 use chrono::NaiveDate;
-use magpie_core::{Item, ItemChange, ItemDraft, ItemKind, ItemStatus};
+use magpie_core::{Item, ItemChange, ItemDraft, ItemKind, ItemStatus, Plan};
 
 use crate::cli::{IdeaCmd, ItemText, TodoCmd};
 use crate::client::Client;
@@ -116,6 +116,72 @@ fn change(client: &Client, out: Output, id: &str, change: &ItemChange) -> anyhow
     let id = resolve(client, id)?;
     let item: Item = client.patch(&format!("/v1/items/{id}"), change)?;
     out.value(&item, || format_item(&item, when::local_today()));
+    Ok(())
+}
+
+/// Human-readable plan: what's in and why, what's pushed and why, nudges.
+pub fn format_plan(p: &Plan) -> String {
+    let mut lines = vec![format!(
+        "{} 计划：{} / {} 分钟{}",
+        p.day.format("%m-%d"),
+        p.used_min,
+        p.capacity_min,
+        if p.over_capacity {
+            "  ⚠ 固定安排已经超出预算"
+        } else {
+            ""
+        }
+    )];
+    for x in &p.planned {
+        lines.push(format!(
+            "  ✔ {:>4}m  {}  · {}",
+            x.minutes,
+            x.title,
+            x.reason.label()
+        ));
+    }
+    if !p.pushed.is_empty() {
+        lines.push("  挪走：".into());
+        for x in &p.pushed {
+            lines.push(format!(
+                "  → {}  {}  · {}",
+                x.to.format("%m-%d"),
+                x.title,
+                x.why
+            ));
+        }
+    }
+    for n in &p.nudges {
+        lines.push(format!("  ! {}  {}", n.title, n.text));
+    }
+    if p.planned.is_empty() && p.pushed.is_empty() {
+        lines.push("  （这天没有要排的）".into());
+    }
+    lines.join(
+        "
+",
+    )
+}
+
+pub fn plan(client: &Client, out: Output, day: &str, apply: bool) -> anyhow::Result<()> {
+    let day = when::day(day, when::local_today())?;
+    let plan: Plan = if apply {
+        client.post("/v1/plan/apply", &serde_json::json!({ "day": day }))?
+    } else {
+        client.get("/v1/plan", &[("day", day.to_string())])?
+    };
+    out.value(&plan, || {
+        let mut s = format_plan(&plan);
+        if !apply {
+            s.push_str(
+                "
+（这只是草案；确认后 `magpie plan ",
+            );
+            s.push_str(&day.to_string());
+            s.push_str(" --apply`）");
+        }
+        s
+    });
     Ok(())
 }
 

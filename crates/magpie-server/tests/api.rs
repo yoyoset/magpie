@@ -407,3 +407,73 @@ async fn item_filters_are_validated() {
     .await;
     assert!(status.is_client_error(), "unknown field rejected");
 }
+
+#[tokio::test]
+async fn plan_draft_then_apply() {
+    let h = harness();
+    let add = |body: Value| {
+        let app = h.app.clone();
+        async move { authed(&app, Method::POST, "/v1/items", Some(body)).await.1 }
+    };
+    let overdue = add(json!({"title":"昨天没做","day":"2026-09-27","estimate_min":30})).await;
+    let fixed =
+        add(json!({"title":"20:00 发帖","day":"2026-09-28","at":"20:00:00","estimate_min":10}))
+            .await;
+    let huge = add(json!({"title":"大改版","day":"2026-09-28","estimate_min":170})).await;
+    add(json!({"kind":"idea","title":"点子不会被自动排"})).await;
+
+    let (status, draft) = authed(&h.app, Method::GET, "/v1/plan?day=2026-09-28", None).await;
+    assert_eq!(status, StatusCode::OK, "{draft}");
+    assert_eq!(draft["capacity_min"], 180);
+    let planned: Vec<&str> = draft["planned"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(planned, ["20:00 发帖", "昨天没做"]);
+    assert_eq!(draft["pushed"][0]["title"], "大改版");
+    assert_eq!(draft["pushed"][0]["to"], "2026-09-29");
+
+    // The draft changed nothing.
+    let (_, still) = authed(
+        &h.app,
+        Method::GET,
+        &format!("/v1/items/{}", huge["id"].as_str().unwrap()),
+        None,
+    )
+    .await;
+    assert_eq!(still["day"], "2026-09-28");
+
+    let (status, applied) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/plan/apply",
+        Some(json!({"day":"2026-09-28"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{applied}");
+    let get = |id: &Value| {
+        let app = h.app.clone();
+        let id = id.as_str().unwrap().to_owned();
+        async move {
+            authed(&app, Method::GET, &format!("/v1/items/{id}"), None)
+                .await
+                .1
+        }
+    };
+    assert_eq!(
+        get(&overdue["id"]).await["day"],
+        "2026-09-28",
+        "overdue pulled into the day"
+    );
+    let moved = get(&huge["id"]).await;
+    assert_eq!(
+        (moved["day"].as_str(), moved["deferrals"].as_u64()),
+        (Some("2026-09-29"), Some(1))
+    );
+    assert_eq!(get(&fixed["id"]).await["day"], "2026-09-28");
+
+    let (status, _) = authed(&h.app, Method::GET, "/v1/plan", None).await;
+    assert!(status.is_client_error(), "day is required");
+}

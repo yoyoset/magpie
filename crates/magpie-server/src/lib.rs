@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::extract::DefaultBodyLimit;
 use axum::Router;
+use magpie_core::PlannerSettings;
 use magpie_store::Store;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
@@ -33,7 +34,14 @@ pub struct AppState {
     /// Pinged whenever an event, ack or reminder changes, so the runtime can
     /// react immediately instead of waiting for its next tick.
     changed: Arc<Notify>,
+    planner: PlannerSettings,
 }
+
+/// Used until the app passes the user's `[planning]` config.
+pub const DEFAULT_PLANNER: PlannerSettings = PlannerSettings {
+    capacity_min: 180,
+    default_estimate_min: 30,
+};
 
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -54,7 +62,14 @@ impl AppState {
             token: token.into(),
             clock,
             changed,
+            planner: DEFAULT_PLANNER,
         }
+    }
+
+    #[must_use]
+    pub fn with_planner(mut self, planner: PlannerSettings) -> Self {
+        self.planner = planner;
+        self
     }
 
     /// Runs a store operation on the blocking pool; `SQLite` calls are synchronous.

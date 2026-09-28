@@ -33,6 +33,14 @@ pub enum Command {
     Ack(AckArgs),
     /// What's on today: overdue + today's todos.
     Today,
+    /// Propose a day's plan within the time budget (default 明天).
+    Plan {
+        #[arg(default_value = "明天")]
+        day: String,
+        /// Apply it: pull items into the day, push the rest to the next day.
+        #[arg(long)]
+        apply: bool,
+    },
     /// Todos: things you've committed to do.
     #[command(subcommand)]
     Todo(TodoCmd),

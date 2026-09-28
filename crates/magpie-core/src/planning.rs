@@ -228,7 +228,8 @@ pub fn plan_day(
                 title: c.item.title.clone(),
                 to: next,
                 why: format!(
-                    "这天排满了（已用 {used}/{capacity} 分钟），它要 {} 分钟且不比已排的急",
+                    "放不下：这天只剩 {} 分钟，它要 {} 分钟，也不比已排的急",
+                    capacity.saturating_sub(used),
                     c.minutes
                 ),
             });

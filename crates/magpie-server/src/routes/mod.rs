@@ -1,6 +1,7 @@
 mod events;
 mod health;
 mod items;
+mod plan;
 mod reminders;
 
 use axum::middleware;
@@ -21,6 +22,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/reminders/{id}", delete(reminders::remove))
         .route("/v1/items", post(items::create).get(items::list))
         .route("/v1/items/{id}", get(items::detail).patch(items::change))
+        .route("/v1/plan", get(plan::draft))
+        .route("/v1/plan/apply", post(plan::apply))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_token,
