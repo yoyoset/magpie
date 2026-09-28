@@ -12,6 +12,7 @@ pub mod followup;
 pub mod item;
 pub mod planning;
 pub mod reminder;
+pub mod review;
 pub mod routing;
 pub mod schedule;
 
