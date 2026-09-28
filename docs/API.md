@@ -16,6 +16,12 @@
 | POST | `/v1/reminders` | 新建提醒，返回 201；模板在创建时就校验 |
 | GET | `/v1/reminders` | 全部提醒 |
 | DELETE | `/v1/reminders/{id}` | 删除，返回 204；不存在返回 404 |
+| POST | `/v1/items` | 新建待办/点子（`ItemDraft`），201 |
+| GET | `/v1/items?status=&kind=&day=\|before=\|from=&to=\|unscheduled=true&limit=` | 日期筛选四选一，混用 422 |
+| GET | `/v1/items/{id}` | 单条 |
+| PATCH | `/v1/items/{id}` | 变更（`ItemChange`），返回新状态 |
+| GET | `/v1/plan?day=YYYY-MM-DD` | 排期草案，不改任何东西 |
+| POST | `/v1/plan/apply` | `{"day":"…"}`：服务端重算并应用（不接受客户端传来的计划） |
 
 ## 事件
 
@@ -48,3 +54,37 @@
 
 `schedule.kind`：`once`（`at`）· `interval`（`anchor` + `every_secs` ≥ 60）· `cron`（5 段，按本机时区的墙钟时间）。
 错过的触发（关机、休眠）合并成一次，不会补发一串。
+
+## 待办与点子
+
+```json
+{"kind": "todo", "title": "定价系数拍板", "why": "服务页唯一硬闸门", "action": "看 P1-P4 选一组",
+ "source": "viiyd 网站", "area": "工作", "day": "2026-09-29", "at": "20:00:00",
+ "deadline": "2026-10-01", "estimate_min": 45, "blocking": true}
+```
+
+`kind`：`todo`（默认）/ `idea`（点子不能带 day/at）。`day`/`deadline` 是本地日期，`at` 是本地时刻。
+未知字段一律 422（AI 写入的输入要严格）。
+
+变更（PATCH 体）：
+
+```json
+{"op": "done", "actual_min": 40}
+{"op": "schedule", "day": "2026-09-30", "at": "10:00:00"}
+{"op": "defer", "to": "2026-09-30"}
+{"op": "unschedule"} · {"op": "estimate", "minutes": 30} · {"op": "drop"} · {"op": "reopen"}
+```
+
+已完成/已放弃的必须先 `reopen` 才能再改；`defer` 必须挪到更晚的日子（推迟次数 +1）。
+
+## 排期草案
+
+```json
+{"day": "2026-09-29", "capacity_min": 180, "used_min": 80, "over_capacity": false,
+ "planned": [{"item": "…", "title": "定价系数拍板", "minutes": 45, "reason": "blocking"}],
+ "pushed":  [{"item": "…", "title": "整理 R2 旧图", "to": "2026-09-30",
+              "why": "放不下：这天只剩 105 分钟，它要 120 分钟，也不比已排的急"}],
+ "nudges":  [{"item": "…", "title": "…", "text": "已经推迟 3 次了：拆成更小的一步，或者干脆放弃？"}]}
+```
+
+`reason`：`fixed_time` · `deadline` · `blocking` · `long_deferred` · `overdue` · `scheduled` · `spare_time`。
