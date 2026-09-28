@@ -19,7 +19,7 @@ pub struct Output {
 }
 
 impl Output {
-    fn value(self, v: &impl serde::Serialize, human: impl FnOnce() -> String) {
+    pub(crate) fn value(self, v: &impl serde::Serialize, human: impl FnOnce() -> String) {
         if self.json {
             println!("{}", serde_json::to_string_pretty(v).expect("serializable"));
         } else {

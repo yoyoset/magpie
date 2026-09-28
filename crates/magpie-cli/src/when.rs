@@ -37,6 +37,55 @@ fn local_to_utc<Tz: TimeZone>(naive: NaiveDateTime, tz: &Tz) -> anyhow::Result<D
         .ok_or_else(|| anyhow::anyhow!("{naive} does not exist in the local time zone"))
 }
 
+/// A calendar day relative to `today`: today/今天, tomorrow/明天, 后天,
+/// 周一..周日 (the next one after today), `MM-DD` (this year), `YYYY-MM-DD`.
+pub fn day(s: &str, today: NaiveDate) -> anyhow::Result<NaiveDate> {
+    use chrono::{Datelike, Weekday};
+    let s = s.trim();
+    let rel = match s.to_lowercase().as_str() {
+        "today" | "今天" => Some(0),
+        "tomorrow" | "明天" => Some(1),
+        "后天" => Some(2),
+        _ => None,
+    };
+    if let Some(n) = rel {
+        return Ok(today + TimeDelta::days(n));
+    }
+    let weekday = match s {
+        "周一" | "星期一" | "mon" => Some(Weekday::Mon),
+        "周二" | "星期二" | "tue" => Some(Weekday::Tue),
+        "周三" | "星期三" | "wed" => Some(Weekday::Wed),
+        "周四" | "星期四" | "thu" => Some(Weekday::Thu),
+        "周五" | "星期五" | "fri" => Some(Weekday::Fri),
+        "周六" | "星期六" | "sat" => Some(Weekday::Sat),
+        "周日" | "周天" | "星期日" | "星期天" | "sun" => Some(Weekday::Sun),
+        _ => None,
+    };
+    if let Some(w) = weekday {
+        let ahead = (7 + i64::from(w.num_days_from_monday())
+            - i64::from(today.weekday().num_days_from_monday()))
+            % 7;
+        return Ok(today + TimeDelta::days(if ahead == 0 { 7 } else { ahead }));
+    }
+    if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        return Ok(d);
+    }
+    if let Ok(d) = NaiveDate::parse_from_str(&format!("{}-{s}", today.year()), "%Y-%m-%d") {
+        return Ok(d);
+    }
+    anyhow::bail!("`{s}` is not a day like 今天 / 明天 / 周三 / 10-02 / 2026-10-02")
+}
+
+pub fn clock(s: &str) -> anyhow::Result<NaiveTime> {
+    NaiveTime::parse_from_str(s.trim(), "%H:%M")
+        .map_err(|_| anyhow::anyhow!("`{s}` is not a time like 19:50"))
+}
+
+/// Today in the machine's zone.
+pub fn local_today() -> NaiveDate {
+    Local::now().date_naive()
+}
+
 /// Formats a UTC time for display in the machine's zone.
 pub fn local_short(t: DateTime<Utc>) -> String {
     t.with_timezone(&Local).format("%m-%d %H:%M").to_string()
@@ -83,6 +132,28 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 9, 29, 11, 50, 0).unwrap(),
             "already past -> tomorrow"
         );
+    }
+
+    #[test]
+    fn relative_and_absolute_days() {
+        let mon = NaiveDate::from_ymd_opt(2026, 9, 28).unwrap(); // a Monday
+        let d = |s| day(s, mon).unwrap();
+        assert_eq!(d("今天"), mon);
+        assert_eq!(d("tomorrow"), NaiveDate::from_ymd_opt(2026, 9, 29).unwrap());
+        assert_eq!(d("后天"), NaiveDate::from_ymd_opt(2026, 9, 30).unwrap());
+        assert_eq!(d("周三"), NaiveDate::from_ymd_opt(2026, 9, 30).unwrap());
+        assert_eq!(
+            d("周一"),
+            NaiveDate::from_ymd_opt(2026, 10, 5).unwrap(),
+            "next Monday, not today"
+        );
+        assert_eq!(d("10-02"), NaiveDate::from_ymd_opt(2026, 10, 2).unwrap());
+        assert_eq!(
+            d("2027-01-05"),
+            NaiveDate::from_ymd_opt(2027, 1, 5).unwrap()
+        );
+        assert!(day("someday", mon).is_err());
+        assert!(clock("25:00").is_err());
     }
 
     #[test]

@@ -31,6 +31,14 @@ pub enum Command {
     Ask(AskArgs),
     /// Respond to an event: acknowledge (default), snooze, reply or dismiss.
     Ack(AckArgs),
+    /// What's on today: overdue + today's todos.
+    Today,
+    /// Todos: things you've committed to do.
+    #[command(subcommand)]
+    Todo(TodoCmd),
+    /// The idea pool: things you might do, not yet scheduled.
+    #[command(subcommand)]
+    Idea(IdeaCmd),
     /// Delete a reminder.
     Unremind {
         /// Reminder id (full UUID).
@@ -169,4 +177,89 @@ mod tests {
     fn cli_definition_is_valid() {
         super::Cli::command().debug_assert();
     }
+}
+
+#[derive(Debug, Args)]
+pub struct ItemText {
+    /// Start with a verb: "定价系数拍板", not "定价".
+    pub title: String,
+    /// Why it matters. The part that gets forgotten.
+    #[arg(long, default_value = "")]
+    pub why: String,
+    /// What you concretely have to do.
+    #[arg(long = "do", default_value = "")]
+    pub action: String,
+    /// Where it came from: a project, a conversation, a scheduled task.
+    #[arg(long, env = "MAGPIE_SOURCE", default_value = "cli")]
+    pub source: String,
+    /// 工作 / 家里 / 孩子 …
+    #[arg(long, default_value = "")]
+    pub area: String,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TodoCmd {
+    /// Add a todo.
+    Add {
+        #[command(flatten)]
+        text: ItemText,
+        /// 今天 / 明天 / 周三 / 10-02 / 2026-10-02. Omit for "someday".
+        #[arg(long)]
+        day: Option<String>,
+        /// Local time on that day: 19:50.
+        #[arg(long)]
+        at: Option<String>,
+        /// Hard deadline (same formats as --day).
+        #[arg(long)]
+        due: Option<String>,
+        /// Estimate: 30m, 1h30m.
+        #[arg(long)]
+        est: Option<String>,
+        /// Other work waits on this; plan it first.
+        #[arg(long)]
+        blocking: bool,
+    },
+    /// List todos for a day (default today, plus anything overdue).
+    List {
+        #[arg(long)]
+        day: Option<String>,
+        /// Unscheduled todos only.
+        #[arg(long, conflicts_with = "day")]
+        someday: bool,
+    },
+    /// Mark done; --took feeds the time ledger.
+    Done {
+        id: String,
+        #[arg(long)]
+        took: Option<String>,
+    },
+    /// Push to a later day (default tomorrow).
+    Defer {
+        id: String,
+        #[arg(long, default_value = "明天")]
+        to: String,
+    },
+    /// Decide not to do it.
+    Drop { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum IdeaCmd {
+    /// Park an idea in the pool.
+    Add {
+        #[command(flatten)]
+        text: ItemText,
+    },
+    /// Show the pool.
+    List,
+    /// Turn an idea into a todo on a day.
+    Plan {
+        id: String,
+        #[arg(long)]
+        day: String,
+        #[arg(long)]
+        at: Option<String>,
+    },
+    /// Discard an idea.
+    Drop { id: String },
 }

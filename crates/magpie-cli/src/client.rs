@@ -77,6 +77,19 @@ impl Client {
         self.finish(res)
     }
 
+    pub fn patch<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, ClientError> {
+        let res = self
+            .agent
+            .patch(self.url(path))
+            .header("Authorization", self.auth())
+            .send_json(body);
+        self.finish(res)
+    }
+
     pub fn delete(&self, path: &str) -> Result<(), ClientError> {
         let res = self
             .agent

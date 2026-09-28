@@ -9,6 +9,7 @@ mod cli;
 mod client;
 mod commands;
 mod hook;
+mod items;
 mod when;
 
 use std::io::Read;
@@ -81,6 +82,9 @@ fn run(client: &Client, out: Output, command: Command) -> anyhow::Result<()> {
         Command::List(a) => commands::list(client, out, &a),
         Command::Ack(a) => commands::ack(client, out, &a),
         Command::Unremind { id } => commands::unremind(client, out, &id),
+        Command::Today => items::today(client, out),
+        Command::Todo(cmd) => items::todo(client, out, cmd),
+        Command::Idea(cmd) => items::idea(client, out, cmd),
         Command::Hook { .. } | Command::Ask(_) => unreachable!("handled in main"),
     }
 }
