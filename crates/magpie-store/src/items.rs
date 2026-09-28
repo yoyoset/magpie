@@ -316,8 +316,8 @@ mod tests {
     }
 
     #[test]
-    fn fresh_database_is_at_v2() {
+    fn fresh_database_is_at_latest_schema() {
         let s = Store::open_in_memory().unwrap();
-        assert_eq!(s.schema_version().unwrap(), 2);
+        assert_eq!(s.schema_version().unwrap(), 3);
     }
 }

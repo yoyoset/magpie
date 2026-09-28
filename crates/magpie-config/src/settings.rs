@@ -92,6 +92,25 @@ pub struct Planning {
     pub daily_minutes: u32,
     /// Estimate assumed for items without one, so they still take space.
     pub default_estimate_min: u32,
+    /// Morning briefing, local "HH:MM".
+    pub briefing_at: String,
+    /// Evening closing review, local "HH:MM".
+    pub review_at: String,
+}
+
+fn hhmm(s: &str) -> Option<chrono::NaiveTime> {
+    chrono::NaiveTime::parse_from_str(s.trim(), "%H:%M").ok()
+}
+
+impl Planning {
+    /// Validated at load, so the fallback only guards hand-built values.
+    pub fn briefing_time(&self) -> chrono::NaiveTime {
+        hhmm(&self.briefing_at).unwrap_or_else(|| hhmm("09:00").expect("valid"))
+    }
+
+    pub fn review_time(&self) -> chrono::NaiveTime {
+        hhmm(&self.review_at).unwrap_or_else(|| hhmm("21:00").expect("valid"))
+    }
 }
 
 impl Default for Planning {
@@ -99,6 +118,8 @@ impl Default for Planning {
         Self {
             daily_minutes: 180,
             default_estimate_min: 30,
+            briefing_at: "09:00".into(),
+            review_at: "21:00".into(),
         }
     }
 }
@@ -187,6 +208,13 @@ impl Settings {
                 "planning.default_estimate_min is {}, expected 5..=480",
                 p.default_estimate_min
             ));
+        }
+        for (key, value) in [("briefing_at", &p.briefing_at), ("review_at", &p.review_at)] {
+            if hhmm(value).is_none() {
+                problems.push(format!(
+                    "planning.{key} `{value}` is not a time like \"21:00\""
+                ));
+            }
         }
         if let Some(t) = &self.telegram {
             if t.chat_id == 0 {
@@ -308,6 +336,8 @@ autostart = true
 [planning]
 daily_minutes = 180         # 每天能排进计划的分钟数（先估个数，时间账会帮你校准）
 default_estimate_min = 30   # 没写估时的待办按这么长算
+briefing_at = "09:00"       # 早上简报：今天有什么
+review_at = "21:00"         # 晚上收尾：对账、排明天
 
 # [telegram]
 # chat_id = 123456789       # bot token 存凭据管理器 telegram-bot-token
@@ -357,6 +387,17 @@ mod tests {
             let err = Settings::parse(bad).unwrap_err().to_string();
             assert!(err.contains("unknown field"), "{bad:?} -> {err}");
         }
+    }
+
+    #[test]
+    fn planning_times_are_validated() {
+        let p = Settings::default().planning;
+        assert_eq!(p.briefing_time().to_string(), "09:00:00");
+        assert_eq!(p.review_time().to_string(), "21:00:00");
+        let err = Settings::parse("[planning]\nreview_at = \"9pm\"")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("planning.review_at `9pm`"), "{err}");
     }
 
     #[test]

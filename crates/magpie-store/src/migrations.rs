@@ -73,6 +73,13 @@ const STEPS: &[&str] = &[
     );
     CREATE INDEX items_by_status_day ON items (status, day);
     ",
+    // v3: follow-ups already sent (dedup keys like due:<item>:<day>)
+    r"
+    CREATE TABLE followups (
+        key      TEXT PRIMARY KEY,
+        sent_at  INTEGER NOT NULL    -- UTC ms
+    );
+    ",
 ];
 
 pub fn latest() -> u32 {
@@ -128,7 +135,7 @@ mod tests {
         let v: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, latest());
         let title: String = conn
             .query_row("SELECT title FROM events WHERE id = 'e1'", [], |r| r.get(0))
             .unwrap();

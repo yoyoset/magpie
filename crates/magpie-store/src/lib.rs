@@ -10,6 +10,7 @@
 mod codec;
 mod error;
 mod events;
+mod followups;
 mod items;
 mod migrations;
 mod reminders;
