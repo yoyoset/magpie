@@ -34,3 +34,5 @@ cargo test --workspace
 - 屏幕访问不可用时，界面验证走 WebView2 调试协议：
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`，再用 CDP `Runtime.evaluate` / `Page.captureScreenshot`。
 - 本机 Python 控制台是 GBK，打印 emoji 会崩：脚本前 `export PYTHONIOENCODING=utf-8`。
+  `python -c` 命令行里写中文字面量也会被嚼坏（匹配不到）：测试脚本按位置或 id 取，别按中文标题过滤。
+- WAL 模式下只复制 `magpie.db` 会丢数据：要连 `-wal`、`-shm` 一起复制。
