@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(plan.pushed[0].item, big.id);
         assert_eq!(plan.pushed[0].to, d(30));
         assert!(
-            plan.pushed[0].why.contains("已用"),
+            plan.pushed[0].why.contains("只剩 20 分钟，它要 60 分钟"),
             "{}",
             plan.pushed[0].why
         );
