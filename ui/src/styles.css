@@ -113,17 +113,19 @@ html.pet-mode, html.pet-mode body, html.pet-mode #root { background: transparent
 .badge { position: absolute; top: 14px; left: 20px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--critical); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px #10161e; }
 
 .mood-idle { animation: bob 2.6s ease-in-out infinite; }
-.mood-idle .tail { transform-origin: 62px 108px; animation: tail 5s ease-in-out infinite; }
+.mood-idle .tail { transform-origin: 50px 112px; animation: tail 5s ease-in-out infinite; }
 .mood-alert { animation: hop .9s ease-in-out infinite; }
-.mood-alert .tail { transform-origin: 62px 108px; animation: wag .45s ease-in-out infinite; }
-.mood-alert .head { transform-origin: 116px 70px; animation: tilt 1.8s ease-in-out infinite; }
+.mood-alert .tail { transform-origin: 50px 112px; animation: wag .45s ease-in-out infinite; }
+.mood-alert .face { transform-origin: 84px 86px; animation: tilt 1.8s ease-in-out infinite; }
 .mood-sleep { animation: breathe 4s ease-in-out infinite; }
 .zzz { animation: float 2.4s ease-in-out infinite; }
+.bang { animation: blink .9s steps(2, start) infinite; }
 @keyframes bob { 50% { transform: translateY(-3px); } }
 @keyframes hop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-12px); } }
 @keyframes tail { 50% { transform: rotate(4deg); } }
 @keyframes wag { 50% { transform: rotate(-10deg); } }
-@keyframes tilt { 50% { transform: rotate(-8deg); } }
+@keyframes tilt { 50% { transform: rotate(-6deg); } }
+@keyframes blink { to { visibility: hidden; } }
 @keyframes breathe { 50% { transform: scale(1.02); } }
 @keyframes float { 0% { opacity: 0; transform: translate(0, 6px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -8px); } }
 
