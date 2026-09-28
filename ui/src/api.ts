@@ -1,7 +1,10 @@
 // Typed wrappers over the Tauri commands in app/src/commands.rs.
 
 import { invoke } from "@tauri-apps/api/core";
-import type { AckKind, AppInfo, EventDetail, EventView, ReminderView, Schedule, EventDraft } from "./types";
+import type {
+  AckKind, AppInfo, EventDetail, EventView, ReminderView, Schedule, EventDraft,
+  Item, ItemChange, ItemDraft, ItemListQuery, Plan,
+} from "./types";
 
 export const api = {
   listEvents: (open: boolean, limit = 200) =>
@@ -16,6 +19,10 @@ export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
   setSecret: (key: string, value: string) => invoke<void>("set_secret", { key, value }),
   openDataFolder: () => invoke<void>("open_data_folder"),
+  listItems: (query: ItemListQuery) => invoke<Item[]>("list_items", { query }),
+  createItem: (draft: ItemDraft) => invoke<Item>("create_item", { draft }),
+  changeItem: (id: string, change: ItemChange) => invoke<Item>("change_item", { id, change }),
+  planDay: (day: string, apply = false) => invoke<Plan>("plan_day", { day, apply }),
 };
 
 /**

@@ -34,3 +34,36 @@ export function describeSchedule(s: Schedule): string {
 export function localInputToIso(value: string): string {
   return new Date(value).toISOString();
 }
+
+/** Local calendar day as YYYY-MM-DD, `offset` days from today. */
+export function localDay(offset = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+/** "今天" / "明天" / "10-02 周五". */
+export function dayLabel(day: string): string {
+  if (day === localDay(0)) return "今天";
+  if (day === localDay(1)) return "明天";
+  if (day === localDay(-1)) return "昨天";
+  const d = new Date(`${day}T00:00:00`);
+  return `${day.slice(5)} ${WEEKDAYS[d.getDay()]}`;
+}
+
+export function minutesLabel(m: number | null | undefined): string {
+  if (m == null) return "—";
+  return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? `${m % 60}m` : ""}` : `${m}m`;
+}
+
+export const reasonLabel: Record<string, string> = {
+  fixed_time: "固定时间",
+  deadline: "到截止日",
+  blocking: "卡着别的事",
+  long_deferred: "拖了好几次",
+  overdue: "逾期",
+  scheduled: "原定",
+  spare_time: "顺手做",
+};

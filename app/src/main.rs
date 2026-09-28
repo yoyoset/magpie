@@ -52,6 +52,10 @@ fn main() {
             commands::hide_pet,
             commands::takeover_pending,
             commands::takeover_done,
+            commands::list_items,
+            commands::create_item,
+            commands::change_item,
+            commands::plan_day,
         ])
         .on_window_event(|window, event| {
             // Closing the window hides it; Magpie keeps running in the tray.

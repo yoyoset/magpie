@@ -1,18 +1,22 @@
 import { useState } from "react";
+import { Ideas } from "./components/Ideas";
 import { Inbox } from "./components/Inbox";
 import { Reminders } from "./components/Reminders";
 import { Settings } from "./components/Settings";
+import { Today } from "./components/Today";
 
-type Tab = "inbox" | "reminders" | "settings";
+type Tab = "today" | "inbox" | "ideas" | "reminders" | "settings";
 
 const tabs: { id: Tab; label: string }[] = [
+  { id: "today", label: "今天" },
   { id: "inbox", label: "收件箱" },
+  { id: "ideas", label: "点子池" },
   { id: "reminders", label: "提醒" },
   { id: "settings", label: "设置" },
 ];
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("inbox");
+  const [tab, setTab] = useState<Tab>("today");
   return (
     <div className="shell">
       <nav className="sidebar">
@@ -27,7 +31,9 @@ export function App() {
         ))}
       </nav>
       <main className="content">
+        {tab === "today" && <Today goInbox={() => setTab("inbox")} />}
         {tab === "inbox" && <Inbox />}
+        {tab === "ideas" && <Ideas />}
         {tab === "reminders" && <Reminders />}
         {tab === "settings" && <Settings />}
       </main>

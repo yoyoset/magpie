@@ -73,3 +73,73 @@ export interface AppInfo {
   channels: string[];
   secrets: { key: string; label: string; present: boolean }[];
 }
+
+export type ItemKind = "idea" | "todo";
+export type ItemStatus = "open" | "done" | "dropped";
+
+export interface Item {
+  id: string;
+  kind: ItemKind;
+  status: ItemStatus;
+  title: string;
+  why: string;
+  action: string;
+  source: string;
+  area: string;
+  day: string | null; // local YYYY-MM-DD
+  at: string | null; // HH:MM:SS
+  deadline: string | null;
+  estimate_min: number | null;
+  actual_min: number | null;
+  blocking: boolean;
+  deferrals: number;
+  created_at: string;
+  updated_at: string;
+  done_at: string | null;
+}
+
+export interface ItemDraft {
+  kind?: ItemKind;
+  title: string;
+  why?: string;
+  action?: string;
+  source?: string;
+  area?: string;
+  day?: string | null;
+  at?: string | null;
+  deadline?: string | null;
+  estimate_min?: number | null;
+  blocking?: boolean;
+}
+
+export type ItemChange =
+  | { op: "done"; actual_min?: number | null }
+  | { op: "schedule"; day: string; at?: string | null }
+  | { op: "defer"; to: string }
+  | { op: "unschedule" }
+  | { op: "estimate"; minutes: number }
+  | { op: "drop" }
+  | { op: "reopen" };
+
+export interface ItemListQuery {
+  status?: ItemStatus;
+  kind?: ItemKind;
+  day?: string;
+  before?: string;
+  from?: string;
+  to?: string;
+  unscheduled?: boolean;
+  limit?: number;
+}
+
+export type Reason = "fixed_time" | "deadline" | "blocking" | "long_deferred" | "overdue" | "scheduled" | "spare_time";
+
+export interface Plan {
+  day: string;
+  capacity_min: number;
+  used_min: number;
+  planned: { item: string; title: string; minutes: number; reason: Reason }[];
+  pushed: { item: string; title: string; to: string; why: string }[];
+  nudges: { item: string; title: string; text: string }[];
+  over_capacity: boolean;
+}

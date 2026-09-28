@@ -7,11 +7,14 @@
 // by-value parameters are dictated by the macro, not a choice.
 #![allow(clippy::needless_pass_by_value)]
 
+use chrono::NaiveDate;
 use chrono::{DateTime, Utc};
 use magpie_config::secrets::{OsKeyring, SecretStore};
 use magpie_config::settings::secret_keys;
-use magpie_core::{AckKind, EventId, Reminder, ReminderId};
-use magpie_server::ops::{self, EventDetail, EventView, ListQuery, NewReminder};
+use magpie_core::{
+    AckKind, EventId, Item, ItemChange, ItemDraft, ItemId, Plan, Reminder, ReminderId,
+};
+use magpie_server::ops::{self, EventDetail, EventView, ItemListQuery, ListQuery, NewReminder};
 use magpie_server::{ApiError, AppState};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -231,4 +234,37 @@ pub fn takeover_done(app: AppHandle, id: String) {
     if app.state::<crate::takeover::Queue>().remove(&id) == 0 {
         crate::takeover::hide(&app);
     }
+}
+
+// ---------- items and planning ----------
+
+#[tauri::command]
+pub async fn list_items(app: AppHandle, query: ItemListQuery) -> CmdResult<Vec<Item>> {
+    let s = services(&app)?;
+    ops::list_items(&s.state, query).await.map_err(err)
+}
+
+#[tauri::command]
+pub async fn create_item(app: AppHandle, draft: ItemDraft) -> CmdResult<Item> {
+    let s = services(&app)?;
+    ops::create_item(&s.state, draft).await.map_err(err)
+}
+
+#[tauri::command]
+pub async fn change_item(app: AppHandle, id: String, change: ItemChange) -> CmdResult<Item> {
+    let s = services(&app)?;
+    ops::change_item(&s.state, ItemId(parse_id(&id)?), change)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn plan_day(app: AppHandle, day: NaiveDate, apply: bool) -> CmdResult<Plan> {
+    let s = services(&app)?;
+    if apply {
+        ops::apply_plan(&s.state, day).await
+    } else {
+        ops::plan(&s.state, day).await
+    }
+    .map_err(err)
 }
