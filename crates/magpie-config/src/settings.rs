@@ -35,6 +35,7 @@ pub struct Settings {
     pub api: Api,
     pub escalation: EscalationPolicy,
     pub desktop: Desktop,
+    pub planning: Planning,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telegram: Option<Telegram>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,6 +80,25 @@ impl Default for Desktop {
             pet: true,
             takeover: true,
             autostart: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Planning {
+    /// Minutes per day the planner may fill. A guess until the time ledger
+    /// has data; fixed-time items still count against it.
+    pub daily_minutes: u32,
+    /// Estimate assumed for items without one, so they still take space.
+    pub default_estimate_min: u32,
+}
+
+impl Default for Planning {
+    fn default() -> Self {
+        Self {
+            daily_minutes: 180,
+            default_estimate_min: 30,
         }
     }
 }
@@ -154,6 +174,19 @@ impl Settings {
         }
         if e.max_attempts == 0 {
             problems.push("escalation.max_attempts must be at least 1".into());
+        }
+        let p = &self.planning;
+        if !(30..=16 * 60).contains(&p.daily_minutes) {
+            problems.push(format!(
+                "planning.daily_minutes is {}, expected 30..=960",
+                p.daily_minutes
+            ));
+        }
+        if !(5..=8 * 60).contains(&p.default_estimate_min) {
+            problems.push(format!(
+                "planning.default_estimate_min is {}, expected 5..=480",
+                p.default_estimate_min
+            ));
         }
         if let Some(t) = &self.telegram {
             if t.chat_id == 0 {
@@ -272,6 +305,10 @@ pet = true
 takeover = true            # critical：全屏 + 提示音，直到回应（Alt+F4 或托盘可关）
 autostart = true
 
+[planning]
+daily_minutes = 180         # 每天能排进计划的分钟数（先估个数，时间账会帮你校准）
+default_estimate_min = 30   # 没写估时的待办按这么长算
+
 # [telegram]
 # chat_id = 123456789       # bot token 存凭据管理器 telegram-bot-token
 
@@ -320,6 +357,18 @@ mod tests {
             let err = Settings::parse(bad).unwrap_err().to_string();
             assert!(err.contains("unknown field"), "{bad:?} -> {err}");
         }
+    }
+
+    #[test]
+    fn planning_defaults_and_bounds() {
+        assert_eq!(Settings::default().planning.daily_minutes, 180);
+        let err = Settings::parse(
+            "[planning]
+daily_minutes = 5",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("planning.daily_minutes is 5"), "{err}");
     }
 
     #[test]
