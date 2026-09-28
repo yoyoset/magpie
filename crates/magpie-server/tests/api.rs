@@ -307,3 +307,103 @@ async fn binds_loopback_and_serves_real_http() {
     assert!(response.contains(r#""status":"ok""#));
     server.abort();
 }
+
+#[tokio::test]
+async fn item_lifecycle_over_http() {
+    let h = harness();
+    let (status, todo) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/items",
+        Some(json!({"title":"定价系数拍板","why":"4.0 服务页唯一硬闸门","action":"看 P1-P4 占位表选一组",
+                    "area":"工作","day":"2026-09-29","estimate_min":45,"blocking":true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{todo}");
+    assert_eq!(todo["kind"], "todo");
+    assert_eq!(todo["status"], "open");
+    let id = todo["id"].as_str().unwrap().to_owned();
+
+    let (_, idea) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/items",
+        Some(json!({"kind":"idea","title":"做数字产品"})),
+    )
+    .await;
+    assert_eq!(idea["day"], Value::Null);
+
+    let (_, on_day) = authed(
+        &h.app,
+        Method::GET,
+        "/v1/items?day=2026-09-29&status=open",
+        None,
+    )
+    .await;
+    assert_eq!(on_day.as_array().unwrap().len(), 1);
+    let (_, pool) = authed(
+        &h.app,
+        Method::GET,
+        "/v1/items?unscheduled=true&kind=idea",
+        None,
+    )
+    .await;
+    assert_eq!(pool[0]["title"], "做数字产品");
+
+    let (status, done) = authed(
+        &h.app,
+        Method::PATCH,
+        &format!("/v1/items/{id}"),
+        Some(json!({"op":"done","actual_min":70})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        (done["status"].as_str(), done["actual_min"].as_u64()),
+        (Some("done"), Some(70))
+    );
+
+    let (status, body) = authed(
+        &h.app,
+        Method::PATCH,
+        &format!("/v1/items/{id}"),
+        Some(json!({"op":"defer","to":"2026-09-30"})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "closed items need reopen: {body}"
+    );
+}
+
+#[tokio::test]
+async fn item_filters_are_validated() {
+    let h = harness();
+    for bad in [
+        "/v1/items?day=2026-09-29&before=2026-09-29",
+        "/v1/items?from=2026-09-30&to=2026-09-29",
+        "/v1/items?from=2026-09-29",
+        "/v1/items?day=tomorrow",
+        "/v1/items?stauts=open",
+    ] {
+        let (status, _) = authed(&h.app, Method::GET, bad, None).await;
+        assert!(status.is_client_error(), "{bad} -> {status}");
+    }
+    let (status, _) = authed(
+        &h.app,
+        Method::GET,
+        &format!("/v1/items/{}", uuid::Uuid::new_v4()),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/items",
+        Some(json!({"title":"x","dayy":"2026-09-29"})),
+    )
+    .await;
+    assert!(status.is_client_error(), "unknown field rejected");
+}

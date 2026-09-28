@@ -4,11 +4,12 @@
 //! these functions, so validation and the "wake the runtime" signal live in
 //! exactly one place.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use magpie_core::{
-    Ack, AckKind, Delivery, Event, EventDraft, EventId, Reminder, ReminderId, Schedule,
+    Ack, AckKind, Delivery, Event, EventDraft, EventId, Item, ItemChange, ItemDraft, ItemError,
+    ItemId, ItemKind, ItemStatus, Reminder, ReminderId, Schedule,
 };
-use magpie_store::{EventQuery, EventRecord};
+use magpie_store::{DayFilter, EventQuery, EventRecord, ItemQuery};
 use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState};
@@ -159,4 +160,104 @@ pub async fn delete_reminder(state: &AppState, id: ReminderId) -> Result<(), Api
     }
     state.changed.notify_one();
     Ok(())
+}
+
+// ---------- items (todos and ideas) ----------
+
+impl From<ItemError> for ApiError {
+    fn from(e: ItemError) -> Self {
+        Self::Invalid(e.to_string())
+    }
+}
+
+/// Item list filter. At most one of `day` / `before` / `from`+`to` / `unscheduled`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ItemListQuery {
+    pub status: Option<ItemStatus>,
+    pub kind: Option<ItemKind>,
+    pub day: Option<NaiveDate>,
+    pub before: Option<NaiveDate>,
+    pub from: Option<NaiveDate>,
+    pub to: Option<NaiveDate>,
+    #[serde(default)]
+    pub unscheduled: bool,
+    pub limit: Option<u32>,
+}
+
+impl ItemListQuery {
+    fn day_filter(&self) -> Result<DayFilter, ApiError> {
+        let forms = [
+            self.day.is_some(),
+            self.before.is_some(),
+            self.from.is_some() || self.to.is_some(),
+            self.unscheduled,
+        ];
+        if forms.iter().filter(|x| **x).count() > 1 {
+            return Err(ApiError::Invalid(
+                "use only one of day / before / from+to / unscheduled".into(),
+            ));
+        }
+        Ok(match (self.day, self.before, self.from, self.to) {
+            (Some(d), ..) => DayFilter::On(d),
+            (_, Some(d), ..) => DayFilter::Before(d),
+            (_, _, Some(a), Some(b)) if a <= b => DayFilter::Between(a, b),
+            (_, _, Some(_), Some(_)) => {
+                return Err(ApiError::Invalid("`from` must not be after `to`".into()))
+            }
+            (_, _, Some(_), None) | (_, _, None, Some(_)) => {
+                return Err(ApiError::Invalid("`from` and `to` go together".into()))
+            }
+            _ if self.unscheduled => DayFilter::Unscheduled,
+            _ => DayFilter::Any,
+        })
+    }
+}
+
+pub async fn create_item(state: &AppState, draft: ItemDraft) -> Result<Item, ApiError> {
+    let item = draft.validate(ItemId::new(), state.clock.now())?;
+    let stored = item.clone();
+    state.with_store(move |s| Ok(s.save_item(&stored)?)).await?;
+    state.changed.notify_one();
+    Ok(item)
+}
+
+pub async fn list_items(state: &AppState, q: ItemListQuery) -> Result<Vec<Item>, ApiError> {
+    let query = ItemQuery {
+        status: q.status,
+        kind: q.kind,
+        day: q.day_filter()?,
+        limit: q.limit.unwrap_or(MAX_PAGE).clamp(1, MAX_PAGE),
+    };
+    state.with_store(move |s| Ok(s.list_items(&query)?)).await
+}
+
+pub async fn get_item(state: &AppState, id: ItemId) -> Result<Item, ApiError> {
+    state
+        .with_store(move |s| {
+            s.get_item(id)?
+                .ok_or_else(|| ApiError::NotFound(format!("item {id} not found")))
+        })
+        .await
+}
+
+/// Applies one change atomically with respect to other writers (same lock).
+pub async fn change_item(
+    state: &AppState,
+    id: ItemId,
+    change: ItemChange,
+) -> Result<Item, ApiError> {
+    let now = state.clock.now();
+    let item = state
+        .with_store(move |s| {
+            let current = s
+                .get_item(id)?
+                .ok_or_else(|| ApiError::NotFound(format!("item {id} not found")))?;
+            let next = change.apply(current, now)?;
+            s.save_item(&next)?;
+            Ok(next)
+        })
+        .await?;
+    state.changed.notify_one();
+    Ok(item)
 }
