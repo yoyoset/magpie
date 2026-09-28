@@ -162,12 +162,16 @@ struct Candidate<'a> {
     minutes: u32,
 }
 
-fn reason_for(item: &Item, day: NaiveDate) -> Option<Reason> {
+fn reason_for(item: &Item, day: NaiveDate, today: NaiveDate) -> Option<Reason> {
     if item.status != ItemStatus::Open || item.kind != ItemKind::Todo {
         return None;
     }
     match item.day {
         Some(d) if d > day => None,
+        // Belongs to a day that isn't over yet (e.g. today's items when planning
+        // tomorrow). Carrying unfinished work over is the evening review's
+        // explicit job, not a side effect of looking at a draft at 11 a.m.
+        Some(d) if d >= today && d < day => None,
         Some(d) if d == day && item.at.is_some() => Some(Reason::FixedTime),
         _ if item.deadline.is_some_and(|dl| dl <= day) => Some(Reason::Deadline),
         _ if item.blocking => Some(Reason::Blocking),
@@ -178,18 +182,20 @@ fn reason_for(item: &Item, day: NaiveDate) -> Option<Reason> {
     }
 }
 
-/// Proposes `day`'s plan from open todos. Ideas are never auto-planned: the
-/// pool is reviewed by a human.
+/// Proposes `day`'s plan from open todos. `today` decides what counts as
+/// overdue: only items from days that are already over. Ideas are never
+/// auto-planned: the pool is reviewed by a human.
 pub fn plan_day(
     items: &[Item],
     day: NaiveDate,
+    today: NaiveDate,
     settings: PlannerSettings,
     calibration: &Calibration,
 ) -> Plan {
     let mut candidates: Vec<Candidate<'_>> = items
         .iter()
         .filter_map(|item| {
-            reason_for(item, day).map(|reason| Candidate {
+            reason_for(item, day, today).map(|reason| Candidate {
                 item,
                 reason,
                 minutes: calibration.minutes(item, settings.default_estimate_min),
@@ -334,7 +340,7 @@ mod tests {
         let someday = todo("随时", None, 10);
         let items = vec![big.clone(), someday, small, overdue, blocker, fixed];
 
-        let plan = plan_day(&items, d(29), S, &Calibration::default());
+        let plan = plan_day(&items, d(29), d(29), S, &Calibration::default());
         assert_eq!(
             titles(&plan.planned),
             ["20:00 发帖", "定价拍板", "昨天没做", "小事", "随时"],
@@ -353,12 +359,31 @@ mod tests {
     }
 
     #[test]
+    fn planning_tomorrow_leaves_todays_unfinished_items_alone() {
+        // Regression: at 11:00 on the 28th, a draft for the 29th pulled the
+        // 28th's still-open items in as "overdue", and applying it would have
+        // moved today's work to tomorrow before today was over.
+        let today_item = todo("今天还没做", Some(d(28)), 10);
+        let really_overdue = todo("前天的", Some(d(26)), 10);
+        let tomorrow_item = todo("明天的", Some(d(29)), 10);
+        let plan = plan_day(
+            &[today_item, really_overdue, tomorrow_item],
+            d(29),
+            d(28),
+            S,
+            &Calibration::default(),
+        );
+        assert_eq!(titles(&plan.planned), ["前天的", "明天的"]);
+        assert_eq!(plan.planned[0].reason, Reason::Overdue);
+    }
+
+    #[test]
     fn must_items_stay_even_over_budget() {
         let mut a = todo("会议", Some(d(29)), 100);
         a.at = NaiveTime::from_hms_opt(10, 0, 0);
         let mut b = todo("截止", None, 60);
         b.deadline = Some(d(29));
-        let plan = plan_day(&[a, b], d(29), S, &Calibration::default());
+        let plan = plan_day(&[a, b], d(29), d(29), S, &Calibration::default());
         assert_eq!(plan.planned.len(), 2);
         assert!(plan.over_capacity);
         assert_eq!(plan.used_min, 160);
@@ -369,7 +394,13 @@ mod tests {
         let mut stale = todo("一直拖", Some(d(29)), 60);
         stale.deferrals = 3;
         let fresh = todo("新的", Some(d(29)), 90);
-        let plan = plan_day(&[fresh, stale.clone()], d(29), S, &Calibration::default());
+        let plan = plan_day(
+            &[fresh, stale.clone()],
+            d(29),
+            d(29),
+            S,
+            &Calibration::default(),
+        );
         assert_eq!(plan.planned[0].title, "一直拖");
         assert_eq!(plan.planned[0].reason, Reason::LongDeferred);
         assert_eq!(plan.nudges.len(), 1);
@@ -389,7 +420,13 @@ mod tests {
         let done = ItemChange::Done { actual_min: None }
             .apply(todo("做完了", Some(d(29)), 10), now())
             .unwrap();
-        let plan = plan_day(&[idea, future, done], d(29), S, &Calibration::default());
+        let plan = plan_day(
+            &[idea, future, done],
+            d(29),
+            d(29),
+            S,
+            &Calibration::default(),
+        );
         assert!(plan.planned.is_empty() && plan.pushed.is_empty());
     }
 
@@ -436,7 +473,7 @@ mod tests {
             today.clone(),
             huge.clone(),
         ];
-        let plan = plan_day(&items, d(29), S, &Calibration::default());
+        let plan = plan_day(&items, d(29), d(29), S, &Calibration::default());
         let changes = plan.changes(&items);
         assert!(changes.contains(&(
             overdue.id,

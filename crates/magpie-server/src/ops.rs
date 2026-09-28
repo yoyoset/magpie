@@ -292,12 +292,14 @@ fn planning_inputs(
 /// A proposal for `day`. Changes nothing.
 pub async fn plan(state: &AppState, day: NaiveDate) -> Result<Plan, ApiError> {
     let settings = state.planner;
+    let today = state.clock.today();
     state
         .with_store(move |s| {
             let (items, history) = planning_inputs(s, day)?;
             Ok(plan_day(
                 &items,
                 day,
+                today,
                 settings,
                 &Calibration::from_history(&history),
             ))
@@ -310,10 +312,17 @@ pub async fn plan(state: &AppState, day: NaiveDate) -> Result<Plan, ApiError> {
 pub async fn apply_plan(state: &AppState, day: NaiveDate) -> Result<Plan, ApiError> {
     let settings = state.planner;
     let now = state.clock.now();
+    let today = state.clock.today();
     let plan = state
         .with_store(move |s| {
             let (items, history) = planning_inputs(s, day)?;
-            let plan = plan_day(&items, day, settings, &Calibration::from_history(&history));
+            let plan = plan_day(
+                &items,
+                day,
+                today,
+                settings,
+                &Calibration::from_history(&history),
+            );
             for (id, change) in plan.changes(&items) {
                 let current = items
                     .iter()
