@@ -89,6 +89,13 @@ async fn run(app: &AppHandle, paths: Paths) -> anyhow::Result<()> {
         .with_followups(magpie_core::FollowUpSettings {
             briefing_at: boot.settings.planning.briefing_time(),
             ..magpie_core::FollowUpSettings::default()
+        })
+        .with_review(magpie_runtime::ReviewSettings {
+            at: boot.settings.planning.review_time(),
+            planner: magpie_core::PlannerSettings {
+                capacity_min: boot.settings.planning.daily_minutes,
+                default_estimate_min: boot.settings.planning.default_estimate_min,
+            },
         }),
     );
     tauri::async_runtime::spawn(magpie_runtime::run(dispatcher, changed, chrono::Local));
