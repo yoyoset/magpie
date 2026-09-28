@@ -8,6 +8,8 @@
 2. 实现。核心逻辑写成纯函数并配单元测试。
 3. `cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` 全绿；
    动了前端再加 `npm run build`（在 `ui/`）。不绿不提交。
+   **提交必须写成条件式**：`if cargo fmt --all -- --check && cargo clippy … && cargo test …; then git commit …; fi`。
+   只「跑一下再 commit」栽过两次（852b50f 漏 clippy、8f72068 测试红着提交）。
 4. 一个逻辑改动一个 commit，message 写清楚做了什么、为什么、测了什么。
 5. 更新本文件：打勾、进度日志加一行、新发现的问题写进「已知问题」。
 6. 遇到只有用户能决定的事（账号、token、要花钱的服务），写进「等用户」，跳过做下一项，不要卡住。

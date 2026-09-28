@@ -28,6 +28,9 @@ cargo test --workspace
 
 ## 踩过的坑
 
+- **门禁要写成条件提交**（`if 全绿; then git commit; fi`），否则测试红着也会提交：852b50f、8f72068 都是这样漏的。
+- rustfmt 会把长断言折行，之后用 `sed`/单行 `replace` 改断言会静默不匹配；改前先 `grep -n` 看实际形态。
+
 - `cargo build -p A -p B --example X` **只编 example**，不编 A 的二进制。测 CLI 前单独 `cargo build -p magpie-cli`，
   否则测的是旧二进制（栽过两次：M4、M9b）。
 - debug 构建的 app 默认加载 Vite dev server（空白页）；要测真界面用 `--features tauri/custom-protocol`。
