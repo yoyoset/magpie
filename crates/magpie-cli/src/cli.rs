@@ -47,6 +47,9 @@ pub enum Command {
     /// The idea pool: things you might do, not yet scheduled.
     #[command(subcommand)]
     Idea(IdeaCmd),
+    /// Run as an MCP server on stdio, so Claude or `OpenCode` can read and write
+    /// the plan directly. Configure the client with `magpie mcp` as the command.
+    Mcp,
     /// Delete a reminder.
     Unremind {
         /// Reminder id (full UUID).

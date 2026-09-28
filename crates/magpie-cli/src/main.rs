@@ -10,6 +10,7 @@ mod client;
 mod commands;
 mod hook;
 mod items;
+mod mcp;
 mod when;
 
 use std::io::Read;
@@ -41,6 +42,23 @@ fn main() -> ExitCode {
         Err(e) => e.exit(),
     };
     let out = Output { json: cli.json };
+
+    if let Command::Mcp = cli.command {
+        // stdout is the protocol channel: nothing else may be printed there.
+        let client = resolve_connection()
+            .map(|conn| Client::new(conn, TIMEOUT))
+            .map_err(|e| format!("{e:#}"));
+        if let Err(e) = &client {
+            eprintln!("magpie mcp: not connected: {e}");
+        }
+        return match mcp::serve(&mcp::Tools::new(client)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("magpie mcp: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
 
     if let Command::Hook {
         agent,
@@ -86,7 +104,7 @@ fn run(client: &Client, out: Output, command: Command) -> anyhow::Result<()> {
         Command::Plan { day, apply } => items::plan(client, out, &day, apply),
         Command::Todo(cmd) => items::todo(client, out, cmd),
         Command::Idea(cmd) => items::idea(client, out, cmd),
-        Command::Hook { .. } | Command::Ask(_) => unreachable!("handled in main"),
+        Command::Hook { .. } | Command::Ask(_) | Command::Mcp => unreachable!("handled in main"),
     }
 }
 

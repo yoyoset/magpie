@@ -23,6 +23,31 @@ magpie --json list                                  # 给脚本用
 
 退出码：0 成功 · 1 出错 · 2 参数错误 · 3 连不上 Magpie（没开）；`ask` 另有 4 被忽略 · 5 超时。
 
+## 让 AI 直接读写你的计划（MCP，推荐）
+
+`magpie mcp` 是一个 MCP 服务器（stdio）。接上之后，AI 在对话里一出现「需要你做的事」「以后可以做的点子」
+就能直接记进 Magpie，也能回答「今天/明天做什么」并出排期草案。工具：
+
+| 工具 | 用途 |
+|---|---|
+| `today` | 逾期 + 今天的待办 + 等你回应的紧急提醒数 |
+| `add_todo` | 记一件你要做的事（标题动词开头，必须带 why；可带 action / day / at / deadline / 估时 / area / blocking） |
+| `add_idea` | 放进点子池（不排日期） |
+| `list` | 某天 / 点子池 / 未排期 / 逾期 |
+| `update` | done（记实际用时）/ defer / schedule / drop / reopen / estimate，id 用前几位即可 |
+| `plan` | 某天的排期草案；`apply=true` 才生效（AI 应先给你看草案） |
+| `notify` | 发一条提醒 |
+
+注册方法（`magpie` 要在 PATH 里，或写安装目录下 `magpie.exe` 的绝对路径）：
+
+- **Claude Code**：`claude mcp add --scope user magpie -- magpie mcp`
+- **Claude 桌面 app**：`claude_desktop_config.json` 的 `mcpServers` 里加
+  `"magpie": { "command": "magpie", "args": ["mcp"] }`
+- **OpenCode**（格式未实测）：`opencode.json` 的 `mcp` 里加
+  `"magpie": { "type": "local", "command": ["magpie", "mcp"] }`
+
+Magpie 桌面程序没开时，MCP 服务器照样启动，每个工具都会回「Magpie 没连上」而不是静默失败。
+
 ## 让 AI 问你、等你回答（`magpie ask`）
 
 AI 或脚本需要你拍板时，用 `ask` 代替 `notify`：它发一条 urgent 事件（会升级、会上手机），然后**阻塞等你回答**，
