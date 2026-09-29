@@ -50,6 +50,7 @@ fn main() {
             commands::open_data_folder,
             commands::show_inbox,
             commands::hide_pet,
+            commands::pet_hit_rects,
             commands::takeover_pending,
             commands::takeover_done,
             commands::list_items,

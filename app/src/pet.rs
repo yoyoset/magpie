@@ -5,6 +5,8 @@ use magpie_channels::{BoxFuture, Channel, ChannelError, Message};
 use magpie_config::settings::PET;
 use magpie_core::Reach;
 use serde::Serialize;
+use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 
 pub const LABEL: &str = "pet";
@@ -13,6 +15,53 @@ const WIDTH: f64 = 300.0;
 const HEIGHT: f64 = 320.0;
 /// Gap between the pet and the screen's work-area edge, in logical pixels.
 const MARGIN: f64 = 16.0;
+
+/// How often the cursor is checked against the interactive regions.
+const HIT_POLL: Duration = Duration::from_millis(33);
+
+/// Interactive regions `[x, y, w, h]` in the window's logical pixels, reported by
+/// the page (the bird, the bubble, the menu). Everything else is click-through.
+static HIT_RECTS: Mutex<Vec<[f64; 4]>> = Mutex::new(Vec::new());
+
+pub fn set_hit_rects(rects: Vec<[f64; 4]>) {
+    if let Ok(mut r) = HIT_RECTS.lock() {
+        *r = rects;
+    }
+}
+
+fn inside(rects: &[[f64; 4]], x: f64, y: f64) -> bool {
+    rects
+        .iter()
+        .any(|[rx, ry, w, h]| x >= *rx && x < rx + w && y >= *ry && y < ry + h)
+}
+
+/// A transparent window still eats clicks over its empty area. Once ignoring
+/// cursor events the page gets no hover events either, so the cursor is polled
+/// here and the window only takes input while the cursor is over a drawn region.
+fn spawn_hit_test(window: tauri::WebviewWindow) {
+    std::thread::spawn(move || {
+        let mut ignoring: Option<bool> = None;
+        loop {
+            std::thread::sleep(HIT_POLL);
+            let (Ok(cursor), Ok(origin), Ok(scale)) = (
+                window.cursor_position(),
+                window.inner_position(),
+                window.scale_factor(),
+            ) else {
+                continue;
+            };
+            let x = (cursor.x - f64::from(origin.x)) / scale;
+            let y = (cursor.y - f64::from(origin.y)) / scale;
+            let want_ignore = !HIT_RECTS.lock().is_ok_and(|r| inside(&r, x, y));
+            if ignoring != Some(want_ignore) {
+                if window.set_ignore_cursor_events(want_ignore).is_err() {
+                    break; // window is gone
+                }
+                ignoring = Some(want_ignore);
+            }
+        }
+    });
+}
 
 /// Creates the pet window (hidden until positioned) bottom-right above the taskbar.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
@@ -45,6 +94,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         );
         window.set_position(pos)?;
     }
+    spawn_hit_test(window.clone());
     window.show()
 }
 
@@ -109,5 +159,20 @@ impl Channel for PetChannel {
                 .emit_to(LABEL, MESSAGE_EVENT, bubble)
                 .map_err(|e| ChannelError::Transient(format!("pet: {e}")))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::inside;
+
+    #[test]
+    fn hit_test_is_half_open_and_empty_means_click_through() {
+        let rects = [[10.0, 20.0, 100.0, 50.0]];
+        assert!(inside(&rects, 10.0, 20.0));
+        assert!(inside(&rects, 109.9, 69.9));
+        assert!(!inside(&rects, 110.0, 30.0));
+        assert!(!inside(&rects, 5.0, 30.0));
+        assert!(!inside(&[], 10.0, 20.0));
     }
 }

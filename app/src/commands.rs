@@ -222,6 +222,12 @@ pub fn hide_pet(app: AppHandle) {
     }
 }
 
+/// The pet page reports where it actually draws; the rest of its window is click-through.
+#[tauri::command]
+pub fn pet_hit_rects(rects: Vec<[f64; 4]>) {
+    crate::pet::set_hit_rects(rects);
+}
+
 #[tauri::command]
 pub fn takeover_pending(app: AppHandle) -> Vec<crate::takeover::Pending> {
     app.state::<crate::takeover::Queue>().snapshot()

@@ -31,6 +31,25 @@ export function Pet() {
   const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const hideTimer = useRef<number | undefined>(undefined);
+  const root = useRef<HTMLDivElement>(null);
+
+  // Tell the shell where we draw; the rest of the transparent window is click-through.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const report = () => {
+      const rects = Array.from(el.querySelectorAll<HTMLElement>(".bird, .bubble, .pet-menu")).map((n) => {
+        const r = n.getBoundingClientRect();
+        return [r.x, r.y, r.width, r.height];
+      });
+      void invoke("pet_hit_rects", { rects });
+    };
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    el.querySelectorAll(".bird, .bubble, .pet-menu").forEach((n) => ro.observe(n));
+    return () => ro.disconnect();
+  }, [bubble, menu, error]);
 
   // Bubbles pushed by the `pet` channel.
   useEffect(() => {
@@ -102,7 +121,7 @@ export function Pet() {
   }
 
   return (
-    <div className="pet">
+    <div className="pet" ref={root}>
       {bubble && (
         <div className={`bubble sev-${bubble.severity}`}>
           <div className="bubble-title">{bubble.title}</div>
