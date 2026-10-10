@@ -62,12 +62,14 @@ v0.1（M0–M12）与 v0.2（A1–A7）全部完成并已安装使用。会话�
 1. 选手机通道（ntfy / 企业微信 + Cloudflare Worker），实现并真机验证
 2. 修安装脚本：卸载时清掉记住的安装目录（见「已知问题」）
 3. 用户肉眼确认托盘、toast、Alt+F4（见「等用户」）
-4. 建 GitHub 仓库并推送，让 CI 首跑
+4. ~~建 GitHub 仓库并推送，让 CI 首跑~~ 已推送；CI 工作流 2026-10-10 删除（见「这次不做」）
 5. 桌宠透明区点击穿透
 6. 以后：孩子的收尾卡、数据搬 homeserver、周复盘趋势
 
 ## 这次不做（及理由）
 
+- 推送即跑的 CI：单人项目，本地门禁（fmt/clippy/test）已是提交前提；CI 用最新 stable（1.99）而本机是 1.92，
+  首跑就在 clippy 步变红（本机 1.92 及全新 clone 均全绿，推断是新 lint，未取到日志），只制造噪音。2026-10-10 删除 `ci.yml`，保留打 tag 出安装包的 `release.yml`。
 - 管理员提权：不需要，见 ARCHITECTURE「权限高」。
 - 自建推送服务器：Telegram / ntfy 已够用，自建要运维。
 - 跨平台打包：先只保证 Windows；代码不写死 Windows，但不在 mac/linux 上验证。
@@ -79,8 +81,7 @@ v0.1（M0–M12）与 v0.2（A1–A7）全部完成并已安装使用。会话�
 
 - **Telegram 真机验证**：需要 ① 找 @BotFather 建一个 bot 拿 token（或复用现有表单链路的 bot）② 给 bot 发一句话后拿到你的 chat id。
   代码和测试已完成，缺的只是真实投递那一步。token 会存进凭据管理器，不落文件。
-- **建 GitHub 仓库**：建好后 `git remote add origin … && git push -u origin main`，CI 会首次运行；我没法替你建号/建库。
-  打 `v0.1.0` tag 会自动出安装包草稿 release。
+- 打 `v0.1.0` tag 会自动出安装包草稿 release（`release.yml`，只在推 tag 时跑）。
 - **要不要给现有两个定时任务接上 Magpie**（`viiyd-weekly-social-prep`、`viiyd-monthly-marketing-review`）：
   在它们的 prompt 末尾加一句 `magpie notify …`。这是改你的定时任务配置，等你点头再动。
 - **看一眼屏幕**：运行 `F:/my_ai/magpie/target/debug/magpie-app.exe`，再在终端跑 `magpie notify 测试`，
