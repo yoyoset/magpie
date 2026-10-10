@@ -11,7 +11,7 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use serde::{Deserialize, Serialize};
 
 use crate::event::{EventDraft, Severity};
-use crate::item::{Item, ItemKind, ItemStatus};
+use crate::item::{Item, ItemId, ItemKind, ItemStatus};
 
 pub const SOURCE: &str = "magpie:planner";
 
@@ -64,10 +64,15 @@ fn hm(t: NaiveTime) -> String {
     t.format("%H:%M").to_string()
 }
 
+/// Tag linking a planner event to its item, so finishing the item can close it.
+pub fn item_tag(id: ItemId) -> String {
+    format!("item:{id}")
+}
+
 fn tags(item: Option<&Item>) -> Vec<String> {
     let mut t = vec!["planner".to_owned()];
     if let Some(i) = item {
-        t.push(format!("item:{}", i.id));
+        t.push(item_tag(i.id));
     }
     t
 }
@@ -185,7 +190,7 @@ pub fn follow_ups<H: BuildHasher>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item::{ItemChange, ItemDraft, ItemId};
+    use crate::item::{ItemChange, ItemDraft};
     use chrono::{DateTime, TimeZone, Utc};
 
     fn now_utc() -> DateTime<Utc> {

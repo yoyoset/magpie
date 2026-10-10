@@ -378,6 +378,47 @@ async fn item_lifecycle_over_http() {
 }
 
 #[tokio::test]
+async fn finishing_an_item_closes_its_reminders() {
+    let h = harness();
+    let (_, todo) = authed(
+        &h.app,
+        Method::POST,
+        "/v1/items",
+        Some(json!({"title":"发小红书","day":"2026-09-28"})),
+    )
+    .await;
+    let id = todo["id"].as_str().unwrap().to_owned();
+    for tags in [json!(["planner", format!("item:{id}")]), json!(["planner"])] {
+        let (status, _) = authed(
+            &h.app,
+            Method::POST,
+            "/v1/events",
+            Some(json!({"source":"magpie:planner","title":"20:00 发小红书","severity":"urgent","tags":tags})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let (status, _) = authed(
+        &h.app,
+        Method::PATCH,
+        &format!("/v1/items/{id}"),
+        Some(json!({"op":"done"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, open) = authed(&h.app, Method::GET, "/v1/events?open=true", None).await;
+    let open = open.as_array().unwrap();
+    assert_eq!(
+        open.len(),
+        1,
+        "only the event not tied to the item stays open"
+    );
+    assert_eq!(open[0]["tags"], json!(["planner"]));
+}
+
+#[tokio::test]
 async fn item_filters_are_validated() {
     let h = harness();
     for bad in [

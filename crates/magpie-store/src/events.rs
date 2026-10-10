@@ -1,7 +1,7 @@
 //! `events` table, plus the delivery and ack history that hangs off each event.
 
 use chrono::{DateTime, Utc};
-use magpie_core::{Ack, Delivery, Event, EventId, EventSource, Severity};
+use magpie_core::{Ack, AckKind, Delivery, Event, EventId, EventSource, Severity};
 use rusqlite::{params, OptionalExtension, Row};
 
 use crate::codec::{enum_from_name, enum_name, from_json, from_ms, ms, opt_from_ms, to_json, uuid};
@@ -190,6 +190,39 @@ impl Store {
         Ok(())
     }
 
+    /// Acknowledges and closes every open event carrying `tag`; returns how many.
+    /// Used when the thing an event nags about is settled somewhere else (the
+    /// todo was ticked off), so the reminder does not stay open forever.
+    pub fn close_events_tagged(
+        &mut self,
+        tag: &str,
+        via: &str,
+        at: DateTime<Utc>,
+    ) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let ids: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT id FROM events
+                 WHERE closed_at IS NULL
+                   AND EXISTS (SELECT 1 FROM json_each(events.tags) WHERE value = ?1)",
+            )?;
+            let rows = stmt.query_map([tag], |r| r.get(0))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        for id in &ids {
+            tx.execute(
+                "INSERT INTO acks (event_id, kind, via, at) VALUES (?1, ?2, ?3, ?4)",
+                params![id, to_json(&AckKind::Acknowledged), via, ms(at)],
+            )?;
+            tx.execute(
+                "UPDATE events SET closed_at = ?2 WHERE id = ?1",
+                params![id, ms(at)],
+            )?;
+        }
+        tx.commit()?;
+        Ok(ids.len())
+    }
+
     pub fn latest_ack(&self, event_id: EventId) -> Result<Option<Ack>> {
         self.conn
             .query_row(
@@ -219,7 +252,7 @@ impl Store {
 mod tests {
     use super::*;
     use chrono::{TimeDelta, TimeZone};
-    use magpie_core::{AckKind, DeliveryOutcome, EventDraft, Tier};
+    use magpie_core::{DeliveryOutcome, EventDraft, Tier};
 
     fn t(min: i64) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 9, 28, 20, 0, 0).unwrap() + TimeDelta::minutes(min)
@@ -255,6 +288,37 @@ mod tests {
         assert_eq!(got.event, e);
         assert_eq!(got.closed_at, None);
         assert!(s.get_event(EventId::new()).unwrap().is_none());
+    }
+
+    #[test]
+    fn closing_by_tag_acks_only_open_events_with_that_exact_tag() {
+        let mut s = Store::open_in_memory().unwrap();
+        let tagged = |title: &str, tag: &str| {
+            let mut e = event(title, Severity::Urgent, t(0));
+            e.tags = vec!["planner".into(), tag.into()];
+            e
+        };
+        let (a, b, other) = (
+            tagged("a", "item:1"),
+            tagged("b", "item:1"),
+            tagged("c", "item:12"),
+        );
+        for e in [&a, &b, &other] {
+            s.insert_event(e).unwrap();
+        }
+        s.record_ack(&ack(&a, AckKind::Dismissed, t(1))).unwrap();
+
+        assert_eq!(s.close_events_tagged("item:1", "item", t(5)).unwrap(), 1);
+        // Already closed: first final ack still wins.
+        assert_eq!(s.get_event(a.id).unwrap().unwrap().closed_at, Some(t(1)));
+        assert_eq!(s.get_event(b.id).unwrap().unwrap().closed_at, Some(t(5)));
+        let latest = s.latest_ack(b.id).unwrap().unwrap();
+        assert_eq!(
+            (latest.kind, latest.via.as_str()),
+            (AckKind::Acknowledged, "item")
+        );
+        assert_eq!(s.get_event(other.id).unwrap().unwrap().closed_at, None);
+        assert_eq!(s.close_events_tagged("item:1", "item", t(6)).unwrap(), 0);
     }
 
     #[test]

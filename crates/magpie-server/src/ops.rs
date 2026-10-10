@@ -5,6 +5,7 @@
 //! exactly one place.
 
 use chrono::{DateTime, NaiveDate, Utc};
+use magpie_core::followup::item_tag;
 use magpie_core::planning::{plan_day, Calibration};
 use magpie_core::{
     Ack, AckKind, Delivery, Event, EventDraft, EventId, Item, ItemChange, ItemDraft, ItemError,
@@ -256,6 +257,11 @@ pub async fn change_item(
                 .ok_or_else(|| ApiError::NotFound(format!("item {id} not found")))?;
             let next = change.apply(current, now)?;
             s.save_item(&next)?;
+            // Its reminders have nothing left to nag about; without this they stay
+            // open (and escalating) until acked one by one.
+            if next.status != ItemStatus::Open {
+                s.close_events_tagged(&item_tag(next.id), "item", now)?;
+            }
             Ok(next)
         })
         .await?;
